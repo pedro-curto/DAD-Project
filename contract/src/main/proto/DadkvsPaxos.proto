@@ -1,0 +1,57 @@
+//
+// Protocol buffers definition for Dadkvs Paxos Service
+//
+syntax = "proto3";
+package dadkvs;
+
+message PhaseOneRequest {
+  int32 phase1config    = 1;
+  int32 phase1index     = 2;
+  int32 phase1timestamp = 3;
+}
+
+message PhaseOneReply {
+  int32 phase1config    = 1;
+  int32 phase1index     = 2;
+  bool  phase1accepted  = 3;
+  int32 phase1value     = 4;
+  int32 phase1timestamp = 5;
+}
+
+message PhaseTwoRequest {
+  int32 phase2config    = 1;
+  int32 phase2index     = 2;
+  int32 phase2value     = 3;
+  int32 phase2timestamp = 4;
+}
+
+message PhaseTwoReply {
+  int32 phase2config   = 1;
+  int32 phase2index    = 2;
+  bool  phase2accepted = 3;
+}
+
+message LearnRequest {
+  int32 learnconfig    = 1;
+  int32 learnindex     = 2;
+  int32 learnvalue     = 3;
+  int32 learntimestamp = 4;
+}
+
+message LearnReply {
+  int32 learnconfig   = 1;
+  int32 learnindex    = 2;
+  bool  learnaccepted = 3;
+}
+
+service DadkvsPaxosService {
+  rpc phaseone (PhaseOneRequest) returns (PhaseOneReply);
+  rpc phasetwo (PhaseTwoRequest) returns (PhaseTwoReply);
+  rpc learn (LearnRequest) returns (LearnReply);
+}
+
+
+
+
+
+

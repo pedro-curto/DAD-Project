@@ -1,0 +1,37 @@
+//
+// Protocol buffers definition for Dadkvs Main Service
+//
+syntax = "proto3";
+package dadkvs;
+
+message ReadRequest {
+  int32 reqid = 1;
+  int32 key   = 2;
+}
+
+message ReadReply {
+  int32 reqid	  = 1;
+  int32 value     = 2;
+  int32 timestamp = 3;
+}
+
+message CommitRequest {
+  int32 reqid	  = 1;
+  int32 key1      = 2;
+  int32 version1  = 3;
+  int32 key2      = 4;
+  int32 version2  = 5;
+  int32 writekey  = 6;
+  int32 writeval  = 7;
+}
+
+message CommitReply {
+  int32 reqid   = 1;
+  bool  ack     = 2;
+}
+
+service DadkvsMainService {
+  rpc read (ReadRequest) returns (ReadReply);
+  rpc committx (CommitRequest) returns (CommitReply);
+}
+

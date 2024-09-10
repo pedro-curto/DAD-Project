@@ -1,0 +1,30 @@
+//
+// Protocol buffers definition for Dadkvs Console Service
+//
+syntax = "proto3";
+package dadkvs;
+
+message SetLeaderRequest {
+  bool isleader = 1;
+}
+
+message SetLeaderReply {
+  bool isleaderack = 1;
+}
+
+message SetDebugRequest {
+  int32 mode = 1;
+}
+
+message SetDebugReply {
+  bool ack = 1;
+}
+
+service DadkvsConsoleService {
+  rpc setleader (SetLeaderRequest) returns (SetLeaderReply);
+  rpc setdebug (SetDebugRequest) returns (SetDebugReply);
+}
+
+
+
+
