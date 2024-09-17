@@ -43,7 +43,11 @@ The servers run the base implementation. They are executed running the following
 
 Where you must fill in the following arguments:
 - **{id}**: Sequential id of the server. Current implementation requires servers to be ID'ed starting from *0* to *N-1* servers.
-- **{port}**: Base port of all servers. **All servers should use the same port**. The Server binded port will be  **{port} + {id}**. 
+- **{port}**: Base port of all servers. **All servers should use the same port**. The Server binded port will be  **{port} + {id}**.
+
+A more efficient way to run the servers that does not require to open multiple shells is by running the shell script ```sv_start.sh```, which registers the servers' outputs on logs. To run the script use the following command:
+
+`./sv_start.sh`
 
 ## Client
 
