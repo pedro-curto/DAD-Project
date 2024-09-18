@@ -94,7 +94,7 @@
           check.enable = false;
           settings.hooks = {
             actionlint.enable = true;
-            treefmt.enable = true;
+            treefmt.enable = false;
             commitizen = {
               enable = true;
               description = "Check whether the current commit message follows commiting rules. Allow empty commit messages by default, because they typically indicate to Git that the commit should be aborted.";

@@ -12,7 +12,7 @@ public class SequencerServiceImpl extends DadkvsSequencerServiceGrpc.DadkvsSeque
 
   public SequencerServiceImpl() {
     seqNumber = 0;
-  }2
+  }
 
   @Override
   public synchronized void getSeqNumber(
