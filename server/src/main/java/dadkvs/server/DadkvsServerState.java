@@ -14,7 +14,7 @@ public class DadkvsServerState {
     public DadkvsServerState(int kv_size, int port, int myself) {
 	base_port = port;
 	my_id = myself;
-	i_am_leader = false;
+	i_am_leader = my_id == 1;
 	debug_mode = 0;
 	store_size = kv_size;
 	store = new KeyValueStore(kv_size);
@@ -22,4 +22,6 @@ public class DadkvsServerState {
 	main_loop_worker = new Thread (main_loop);
 	main_loop_worker.start();
     }
+
+    public boolean isLeader() { return i_am_leader; }
 }

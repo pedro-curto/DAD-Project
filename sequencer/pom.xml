@@ -21,7 +21,7 @@
 		<version.exec-maven-plugin>3.0.0</version.exec-maven-plugin>
 
 		<mainclass>dadkvs.sequencer.SequencerServer</mainclass>
-		<server.port>8080</server.port>
+		<server.port>8090</server.port>
 	</properties>
 
 	<dependencies>
