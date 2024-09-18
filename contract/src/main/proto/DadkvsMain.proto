@@ -30,8 +30,19 @@ message CommitReply {
   bool  ack     = 2;
 }
 
+message SequenceNumberRequest {
+  int32 reqid = 1;
+  int32 seqnumber = 2;
+}
+
+message SequenceNumberResponse {
+  int32 reqid   = 1;
+  bool  ack     = 2;
+}
+
 service DadkvsMainService {
   rpc read (ReadRequest) returns (ReadReply);
   rpc committx (CommitRequest) returns (CommitReply);
+  rpc sequencenumber(SequenceNumberRequest) returns (SequenceNumberResponse);
 }
 

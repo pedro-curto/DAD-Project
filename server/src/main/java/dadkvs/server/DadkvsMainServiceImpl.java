@@ -6,22 +6,44 @@ import dadkvs.DadkvsMainServiceGrpc;
 import dadkvs.DadkvsSequencer;
 import dadkvs.DadkvsSequencerServiceGrpc;
 
+import dadkvs.util.CollectorStreamObserver;
+import dadkvs.util.GenericResponseCollector;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
+
+import java.util.ArrayList;
 
 public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServiceImplBase {
 
     DadkvsServerState server_state;
     int               timestamp;
-	DadkvsSequencerServiceGrpc.DadkvsSequencerServiceBlockingStub sequencerStub;
+	int n_servers;
+	private final DadkvsSequencerServiceGrpc.DadkvsSequencerServiceBlockingStub sequencerStub;
 	private final ManagedChannel sequencerChannel;
-    
+	private final ManagedChannel[] serverChannels;
+	private final DadkvsMainServiceGrpc.DadkvsMainServiceStub[] serverStubs;
+	private int port;
+	private String host;
+	private String[] targets;
+
     public DadkvsMainServiceImpl(DadkvsServerState state) {
-        this.server_state = state;
+		this.server_state = state;
 		this.timestamp = 0;
+		this.n_servers = 5;
 		this.sequencerChannel = ManagedChannelBuilder.forAddress("localhost", 8090).usePlaintext().build();
 		this.sequencerStub = DadkvsSequencerServiceGrpc.newBlockingStub(sequencerChannel);
+		this.port = 8080;
+		this.host = "localhost";
+		this.targets = new String[n_servers];
+		this.serverChannels = new ManagedChannel[n_servers];
+		this.serverStubs = new DadkvsMainServiceGrpc.DadkvsMainServiceStub[n_servers];
+		for (int i = 0; i < n_servers; i++) {
+			int target_port = port + i;
+			targets[i] = host + ":" + target_port;
+			serverChannels[i] = ManagedChannelBuilder.forTarget(targets[i]).usePlaintext().build();
+			serverStubs[i] = DadkvsMainServiceGrpc.newStub(serverChannels[i]);
+		}
     }
 
     @Override
@@ -32,10 +54,10 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 	int reqid = request.getReqid();
 	int key = request.getKey();
 	VersionedValue vv = this.server_state.store.read(key);
-	
+
 	DadkvsMain.ReadReply response =DadkvsMain.ReadReply.newBuilder()
 	    .setReqid(reqid).setValue(vv.getValue()).setTimestamp(vv.getVersion()).build();
-	
+
 	responseObserver.onNext(response);
 	responseObserver.onCompleted();
     }
@@ -56,25 +78,54 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 	// for debug purposes
 	System.out.println("reqid " + reqid + " key1 " + key1 + " v1 " + version1 + " k2 " + key2 + " v2 " + version2 + " wk " + writekey + " writeval " + writeval);
 
-	
+
 	if (this.server_state.isLeader()) {
+		// gets the request sequence number from the sequencer
 		DadkvsSequencer.GetSeqNumberRequest seqRequest = DadkvsSequencer.GetSeqNumberRequest.newBuilder().build();
 		DadkvsSequencer.GetSeqNumberResponse seqResponse = this.sequencerStub.getSeqNumber(seqRequest);
 		int seqNumber = seqResponse.getSeqNumber();
 		System.out.println("SeqNumber is " + seqNumber);
+		// sends the request to all servers
+		sendToReplicas(seqNumber, reqid);
+
 	}
-      
+
 	this.timestamp++;
 	TransactionRecord txrecord = new TransactionRecord (key1, version1, key2, version2, writekey, writeval, this.timestamp);
 	boolean result = this.server_state.store.commit (txrecord);
 
 	// for debug purposes
 	System.out.println("Result is ready for request with reqid " + reqid);
-	
+
 	DadkvsMain.CommitReply response =DadkvsMain.CommitReply.newBuilder()
 	    .setReqid(reqid).setAck(result).build();
-	
+
 	responseObserver.onNext(response);
 	responseObserver.onCompleted();
     }
+
+	@Override
+	public void sequencenumber(DadkvsMain.SequenceNumberRequest request, StreamObserver<DadkvsMain.SequenceNumberResponse> responseObserver) {
+		System.out.println("Receiving sequence number request:" + request);
+		int seqNumber = request.getSeqnumber();
+		int reqId = request.getReqid();
+
+		System.out.println("Received sequence number request with seqNumber " + seqNumber + " and reqId " + reqId);
+	}
+
+private void sendToReplicas(int seqNumber, int reqId) {
+		System.out.println("Sending request to replicas");
+	DadkvsMain.SequenceNumberRequest sequenceNumberRequest = DadkvsMain.SequenceNumberRequest.newBuilder()
+			.setSeqnumber(seqNumber).setReqid(reqId).build();
+	ArrayList<DadkvsMain.SequenceNumberResponse> sequenceNumberResponses = new ArrayList<>();
+	GenericResponseCollector<DadkvsMain.SequenceNumberResponse> sequenceNumberCollector =
+			new GenericResponseCollector<>(sequenceNumberResponses, n_servers);
+	for (DadkvsMainServiceGrpc.DadkvsMainServiceStub stub : serverStubs) {
+		CollectorStreamObserver<DadkvsMain.SequenceNumberResponse> seqNumObserver = new CollectorStreamObserver<>(sequenceNumberCollector);
+		stub.sequencenumber(sequenceNumberRequest, seqNumObserver);
+	}
+	sequenceNumberCollector.waitForTarget(n_servers);
+	System.out.println("Received all responses from replicas");
+}
+
 }
