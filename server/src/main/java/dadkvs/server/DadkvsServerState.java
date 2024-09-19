@@ -6,6 +6,7 @@ public class DadkvsServerState {
     int            base_port;
     int            my_id;
     int            store_size;
+	int sequenceNumber;
     KeyValueStore  store;
     MainLoop       main_loop;
     Thread         main_loop_worker;
@@ -17,6 +18,7 @@ public class DadkvsServerState {
 	i_am_leader = my_id == 1;
 	debug_mode = 0;
 	store_size = kv_size;
+	sequenceNumber = 0;
 	store = new KeyValueStore(kv_size);
 	main_loop = new MainLoop(this);
 	main_loop_worker = new Thread (main_loop);
@@ -24,4 +26,11 @@ public class DadkvsServerState {
     }
 
     public boolean isLeader() { return i_am_leader; }
+
+	public synchronized int getSequencenumber() { return sequenceNumber; }
+
+	public synchronized void incrementSequenceNumber() {
+		this.sequenceNumber++;
+		this.notifyAll();
+	}
 }
