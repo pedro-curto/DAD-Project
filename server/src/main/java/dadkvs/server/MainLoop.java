@@ -35,6 +35,7 @@ public class MainLoop implements Runnable  {
     
     synchronized public void doWork() {
 	System.out.println("Main loop do work start");
+	System.out.println("Am I the leader? " + this.server_state.isLeader());
 	this.has_work = false;
 	while (this.has_work == false) {
 	    System.out.println("Main loop do work: waiting");

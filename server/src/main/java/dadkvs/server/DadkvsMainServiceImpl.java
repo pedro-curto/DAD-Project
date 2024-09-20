@@ -77,29 +77,42 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 
 	// for debug purposes
 	System.out.println("reqid " + reqid + " key1 " + key1 + " v1 " + version1 + " k2 " + key2 + " v2 " + version2 + " wk " + writekey + " writeval " + writeval);
-	int seqNumber = -1;
+	int sequenceNumber = -1;
+
 	if (this.server_state.isLeader()) {
 		// gets the request sequence number from the sequencer
 		DadkvsSequencer.GetSeqNumberRequest seqRequest = DadkvsSequencer.GetSeqNumberRequest.newBuilder().build();
 		DadkvsSequencer.GetSeqNumberResponse seqResponse = this.sequencerStub.getSeqNumber(seqRequest);
-		seqNumber = seqResponse.getSeqNumber();
-		System.out.println("SeqNumber is " + seqNumber);
+		sequenceNumber = seqResponse.getSeqNumber();
+		System.out.println("SeqNumber is " + sequenceNumber);
 		// sends the request to all servers
-		sendToReplicas(seqNumber, reqid);
+		sendToReplicas(sequenceNumber, reqid);
+	} else {
+		// -- TODO waits based on the sequence number associated with the request --
+		while (sequenceNumber == -1) {
+			synchronized(this.server_state) {
+				try {
+					this.server_state.wait();
+					} catch (InterruptedException e) {
+					System.err.println("Error waiting for sequence number: " + e.getMessage());
+				}
+				sequenceNumber = this.server_state.getSequenceNumberForRequest(reqid);
+			}
+		}
 	}
-	// wait for the sequence number before committing
+	// the leader and the replicas wait to execute this request in its turn
 	try {
-		waitForTurn(seqNumber);
+		this.server_state.waitForTurn(sequenceNumber);
 	} catch (InterruptedException e) {
-		throw new RuntimeException(e);
+		System.err.println("Error waiting for turn: " + e.getMessage());
 	}
 
 	this.timestamp++;
 	TransactionRecord txrecord = new TransactionRecord (key1, version1, key2, version2, writekey, writeval, this.timestamp);
-	boolean result = this.server_state.store.commit(txrecord);
+	boolean result = this.server_state.store.commit (txrecord);
 	// for debug purposes
 	System.out.println("Result is ready for request with reqid " + reqid);
-	DadkvsMain.CommitReply response = DadkvsMain.CommitReply.newBuilder()
+	DadkvsMain.CommitReply response =DadkvsMain.CommitReply.newBuilder()
 	    .setReqid(reqid).setAck(result).build();
 	this.server_state.incrementSequenceNumber();
 	responseObserver.onNext(response);
@@ -108,11 +121,14 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 
 	@Override
 	public void sequencenumber(DadkvsMain.SequenceNumberRequest request, StreamObserver<DadkvsMain.SequenceNumberResponse> responseObserver) {
-		System.out.println("Receiving sequence number request:" + request);
 		int seqNumber = request.getSeqnumber();
 		int reqId = request.getReqid();
+		System.out.println("[ServiceImpl] Received sequence number request with seqNumber " + seqNumber + " and reqId " + reqId);
+		this.server_state.updateSequenceNumber(reqId, seqNumber);
 
-		System.out.println("Received sequence number request with seqNumber " + seqNumber + " and reqId " + reqId);
+		DadkvsMain.SequenceNumberResponse response = DadkvsMain.SequenceNumberResponse.newBuilder().setReqid(reqId).build();
+		responseObserver.onNext(response);
+		responseObserver.onCompleted();
 	}
 
 	private void sendToReplicas(int seqNumber, int reqId) {
@@ -128,19 +144,6 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 		}
 		sequenceNumberCollector.waitForTarget(n_servers);
 		System.out.println("Received all responses from replicas");
-	}
-
-	private void waitForTurn(int sequenceNumber) throws InterruptedException {
-		if (sequenceNumber == -1) {
-			System.out.println("Trying to wait for sequence number -1 -- leaving.");
-			return;
-		}
-		synchronized (this.server_state) {
-			while (this.server_state.getSequencenumber() != sequenceNumber) {
-				System.out.println("Waiting for sequence number: " + sequenceNumber);
-				this.server_state.wait();
-			}
-		}
 	}
 
 }
