@@ -15,7 +15,7 @@ public class CollectorStreamObserver<T> implements StreamObserver<T> {
     @Override
     public void onNext(T value) {
         // Handle the received response of type T
-        System.out.println("Received response: " + value);
+        System.out.println("[StreamObserver] Received response: " + value);
 	if (done == false) {
 	    collector.addResponse(value);
 	    done = true;
@@ -25,7 +25,7 @@ public class CollectorStreamObserver<T> implements StreamObserver<T> {
     @Override
     public void onError(Throwable t) {
         // Handle error
-        System.err.println("Error occurred: " + t.getMessage());
+        System.err.println("[StreamObserver] Error occurred: " + t.getMessage());
 	if (done == false) {
 	    collector.addNoResponse();
 	    done = true;
@@ -35,7 +35,7 @@ public class CollectorStreamObserver<T> implements StreamObserver<T> {
     @Override
     public void onCompleted() {
         // Handle stream completion
-        System.out.println("Stream completed");
+        System.out.println("[StreamObserver] Stream completed");
 	if (done == false) {
 	    collector.addNoResponse();
 	    done = true;
