@@ -17,7 +17,7 @@ import java.util.ArrayList;
 public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServiceImplBase {
 
     DadkvsServerState server_state;
-    int               timestamp;
+    int timestamp;
 	int n_servers;
 	private final DadkvsSequencerServiceGrpc.DadkvsSequencerServiceBlockingStub sequencerStub;
 	private final ManagedChannel sequencerChannel;
@@ -57,7 +57,7 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 
 	DadkvsMain.ReadReply response =DadkvsMain.ReadReply.newBuilder()
 	    .setReqid(reqid).setValue(vv.getValue()).setTimestamp(vv.getVersion()).build();
-
+	System.out.println("[MainServiceImpl] Sending read reply with value " + vv.getValue() + " and timestamp " + vv.getVersion());
 	responseObserver.onNext(response);
 	responseObserver.onCompleted();
     }
@@ -65,56 +65,31 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
     @Override
     public void committx(DadkvsMain.CommitRequest request, StreamObserver<DadkvsMain.CommitReply> responseObserver) {
 	// for debug purposes
-	System.out.println("Receiving commit request:" + request);
-
-	int reqid = request.getReqid();
-	int key1 = request.getKey1();
-	int version1 = request.getVersion1();
-	int key2 = request.getKey2();
-	int version2 = request.getVersion2();
-	int writekey = request.getWritekey();
-	int writeval = request.getWriteval();
-
-	// for debug purposes
-	System.out.println("reqid " + reqid + " key1 " + key1 + " v1 " + version1 + " k2 " + key2 + " v2 " + version2 + " wk " + writekey + " writeval " + writeval);
+	System.out.println("[MainServiceImpl] Receiving commit request:" + request);
+	boolean result;
 	int sequenceNumber = -1;
+	int reqId = request.getReqid();
 
 	if (this.server_state.isLeader()) {
 		// gets the request sequence number from the sequencer
 		DadkvsSequencer.GetSeqNumberRequest seqRequest = DadkvsSequencer.GetSeqNumberRequest.newBuilder().build();
 		DadkvsSequencer.GetSeqNumberResponse seqResponse = this.sequencerStub.getSeqNumber(seqRequest);
 		sequenceNumber = seqResponse.getSeqNumber();
-		System.out.println("SeqNumber is " + sequenceNumber);
+		System.out.println("[MainServiceImpl] SeqNumber is " + sequenceNumber);
 		// sends the request to all servers
-		sendToReplicas(sequenceNumber, reqid);
-	} else {
-		// -- TODO waits based on the sequence number associated with the request --
-		while (sequenceNumber == -1) {
-			synchronized(this.server_state) {
-				try {
-					this.server_state.wait();
-					} catch (InterruptedException e) {
-					System.err.println("Error waiting for sequence number: " + e.getMessage());
-				}
-				sequenceNumber = this.server_state.getSequenceNumberForRequest(reqid);
-			}
-		}
+		sendToReplicas(sequenceNumber, reqId);
 	}
-	// the leader and the replicas wait to execute this request in its turn
-	try {
-		this.server_state.waitForTurn(sequenceNumber);
-	} catch (InterruptedException e) {
-		System.err.println("Error waiting for turn: " + e.getMessage());
-	}
-
 	this.timestamp++;
-	TransactionRecord txrecord = new TransactionRecord (key1, version1, key2, version2, writekey, writeval, this.timestamp);
-	boolean result = this.server_state.store.commit (txrecord);
+	result = this.server_state.processTransaction(request, sequenceNumber, this.timestamp);
+	if (result) {
+		System.out.println("[MainServiceImpl] Transaction committed successfully for reqid: " + reqId);
+	} else {
+		System.out.println("[MainServiceImpl] Transaction failed for reqid: " + reqId);
+	}
 	// for debug purposes
-	System.out.println("Result is ready for request with reqid " + reqid);
-	DadkvsMain.CommitReply response =DadkvsMain.CommitReply.newBuilder()
-	    .setReqid(reqid).setAck(result).build();
-	this.server_state.incrementSequenceNumber();
+	System.out.println("[MainServiceImpl] Result is ready for request with reqid " + reqId);
+	DadkvsMain.CommitReply response = DadkvsMain.CommitReply.newBuilder()
+	    .setReqid(reqId).setAck(result).build();
 	responseObserver.onNext(response);
 	responseObserver.onCompleted();
     }
@@ -125,7 +100,7 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 		int reqId = request.getReqid();
 		System.out.println("[ServiceImpl] Received sequence number request with seqNumber " + seqNumber + " and reqId " + reqId);
 		this.server_state.updateSequenceNumber(reqId, seqNumber);
-
+		System.out.println("[ServiceImpl] Sequence number updated for reqId " + reqId);
 		DadkvsMain.SequenceNumberResponse response = DadkvsMain.SequenceNumberResponse.newBuilder().setReqid(reqId).build();
 		responseObserver.onNext(response);
 		responseObserver.onCompleted();
