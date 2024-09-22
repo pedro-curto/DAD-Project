@@ -75,7 +75,7 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 	public void committx(DadkvsMain.CommitRequest request, StreamObserver<DadkvsMain.CommitReply> responseObserver) {
 
 		if (server_state.isServerFrozen()) {
-			System.out.println("Server is frozen, cannot process read request");
+			System.out.println("Server is frozen, cannot process commit request");
 			return;
 		}
 		// for debug purposes
@@ -113,7 +113,7 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 			StreamObserver<DadkvsMain.SequenceNumberResponse> responseObserver) {
 		
 		if (server_state.isServerFrozen()) {
-			System.out.println("Server is frozen, cannot process read request");
+			System.out.println("Server is frozen, cannot process sequence-number request");
 			return;
 		}
 
@@ -132,7 +132,7 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 	private void sendToReplicas(int seqNumber, int reqId) {
 
 		if (server_state.isServerFrozen()) {
-			System.out.println("Server is frozen, cannot process read request");
+			System.out.println("Server is frozen, cannot process send-to-replicas request");
 			return;
 		}
 
