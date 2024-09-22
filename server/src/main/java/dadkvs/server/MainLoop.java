@@ -52,6 +52,12 @@ public class MainLoop implements Runnable {
 						System.out.println("Server Unfrozen");
 						this.has_work = true;
 						break;
+					case 4:
+						System.out.println("Slow Mode On");
+						break;
+					case 5:
+						System.out.println("Slow Mode Off");
+						break;
 					default:
 						break;
 				}
