@@ -121,4 +121,8 @@ public class DadkvsServerState {
 		}
 	}
 
+		public boolean isServerFrozen() {
+			return this.debug_mode == 2;
+		}
+
 }

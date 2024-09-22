@@ -43,6 +43,6 @@ message SequenceNumberResponse {
 service DadkvsMainService {
   rpc read (ReadRequest) returns (ReadReply);
   rpc committx (CommitRequest) returns (CommitReply);
-  rpc sequencenumber(SequenceNumberRequest) returns (SequenceNumberResponse);
+  rpc sequenceNumber(SequenceNumberRequest) returns (SequenceNumberResponse);
 }
 
