@@ -50,8 +50,10 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 
     @Override
     public void read(DadkvsMain.ReadRequest request, StreamObserver<DadkvsMain.ReadReply> responseObserver) {
-	// for debug purposes
-	System.out.println("Receiving read request:" + request);
+	// debug
+	DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
+			"Receiving read request with reqid %d and key %d\n",
+			request.getReqid(), request.getKey());
 
 	int reqid = request.getReqid();
 	int key = request.getKey();
@@ -59,7 +61,9 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 
 	DadkvsMain.ReadReply response =DadkvsMain.ReadReply.newBuilder()
 	    .setReqid(reqid).setValue(vv.getValue()).setTimestamp(vv.getVersion()).build();
-	System.out.println("[MainServiceImpl] Sending read reply with value " + vv.getValue() + " and timestamp " + vv.getVersion());
+	// debug
+	DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
+			"Sending read reply with value %d and timestamp %d\n\n", vv.getValue(), vv.getVersion());
 	responseObserver.onNext(response);
 	responseObserver.onCompleted();
     }
@@ -67,7 +71,9 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
     @Override
     public void committx(DadkvsMain.CommitRequest request, StreamObserver<DadkvsMain.CommitReply> responseObserver) {
 	// for debug purposes
-	System.out.println("[MainServiceImpl] Receiving commit request:" + request);
+	DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
+			"Receiving commit request with reqid %d to read keys %d and %d and write key %d with value %d\n",
+			request.getReqid(), request.getKey1(), request.getKey2(), request.getWritekey(), request.getWriteval());
 	boolean result;
 	int sequenceNumber = -1;
 	int reqId = request.getReqid();
@@ -77,19 +83,20 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 		DadkvsSequencer.GetSeqNumberRequest seqRequest = DadkvsSequencer.GetSeqNumberRequest.newBuilder().build();
 		DadkvsSequencer.GetSeqNumberResponse seqResponse = this.sequencerStub.getSeqNumber(seqRequest);
 		sequenceNumber = seqResponse.getSeqNumber();
-		System.out.println("[MainServiceImpl] SeqNumber is " + sequenceNumber);
+		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "SeqNumber is %d\n", sequenceNumber);
 		// sends the request to all servers
 		sendToReplicas(sequenceNumber, reqId);
 	}
 	this.timestamp++;
 	result = this.server_state.processTransaction(request, sequenceNumber, this.timestamp);
 	if (result) {
-		System.out.println("[MainServiceImpl] Transaction committed successfully for reqid: " + reqId);
+		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Transaction committed successfully for reqid: %d\n", reqId);
 	} else {
-		System.out.println("[MainServiceImpl] Transaction failed for reqid: " + reqId);
+		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Transaction failed for reqid: %d\n", reqId);
 	}
 	// for debug purposes
-	System.out.println("[MainServiceImpl] Result is ready for request with reqid " + reqId);
+	DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
+			"Sending commit reply with result %b for request with reqid %d\n\n", result, reqId);
 	DadkvsMain.CommitReply response = DadkvsMain.CommitReply.newBuilder()
 	    .setReqid(reqId).setAck(result).build();
 	responseObserver.onNext(response);
@@ -100,16 +107,19 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 	public void sequencenumber(DadkvsMain.SequenceNumberRequest request, StreamObserver<DadkvsMain.SequenceNumberResponse> responseObserver) {
 		int seqNumber = request.getSeqnumber();
 		int reqId = request.getReqid();
-		System.out.println("[ServiceImpl] Received sequence number request with seqNumber " + seqNumber + " and reqId " + reqId);
+		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
+				"Received sequence number request with seqNumber %d and reqId %d\n", seqNumber, reqId);
 		this.server_state.updateSequenceNumber(reqId, seqNumber);
-		System.out.println("[ServiceImpl] Sequence number updated for reqId " + reqId);
+		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
+				"Sequence number updated for reqId %d\n", reqId);
 		DadkvsMain.SequenceNumberResponse response = DadkvsMain.SequenceNumberResponse.newBuilder().setReqid(reqId).build();
 		responseObserver.onNext(response);
 		responseObserver.onCompleted();
 	}
 
 	private void sendToReplicas(int seqNumber, int reqId) {
-		System.out.println("Sending request to replicas");
+		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
+				"Sending request to replicas with seqNumber %d and reqId %d\n", seqNumber, reqId);
 		DadkvsMain.SequenceNumberRequest sequenceNumberRequest = DadkvsMain.SequenceNumberRequest.newBuilder()
 				.setSeqnumber(seqNumber).setReqid(reqId).build();
 		ArrayList<DadkvsMain.SequenceNumberResponse> sequenceNumberResponses = new ArrayList<>();
@@ -120,7 +130,8 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 			stub.sequencenumber(sequenceNumberRequest, seqNumObserver);
 		}
 		sequenceNumberCollector.waitForTarget(n_servers);
-		System.out.println("Received all responses from replicas");
+		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
+				"Received all responses from replicas\n");
 	}
 
 }

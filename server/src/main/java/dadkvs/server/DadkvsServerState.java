@@ -33,7 +33,7 @@ public class DadkvsServerState {
 	base_port = port;
 	my_id = myself;
 	i_am_leader = my_id == 1;
-	debug_mode = 0;
+	debug_mode = 6;
 	store_size = kv_size;
 	this.sequenceNumber = new SequenceNumber();
 	this.pendingCommits = new HashMap<>();
@@ -59,11 +59,13 @@ public class DadkvsServerState {
 				while (sequenceNumber == -1) {
 					sequenceNumber = this.getSequenceNumberForRequest(reqid);
 					if (sequenceNumber == -1) {
-						System.out.println("[DadkvsServerState] Waiting for sequence number for reqid: " + reqid);
+						DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
+								"Waiting for sequence number for reqid: %d\n", reqid);
 						try {
 							this.pendingCommits.wait();
 						} catch (InterruptedException e) {
-							System.err.println("[DadkvsServerState] Error waiting for sequence number: " + e.getMessage());
+							DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
+									"Error waiting for sequence number: %s\n", e.getMessage());
 						}
 					}
 				}
@@ -73,7 +75,7 @@ public class DadkvsServerState {
 		try {
 			waitForTurn(sequenceNumber);
 		} catch (InterruptedException e) {
-			System.err.println("[MainServiceImpl] Error waiting for turn: " + e.getMessage());
+			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Error waiting for turn: %s\n", e.getMessage());
 		}
 		// commits transaction
 		TransactionRecord txRecord = new TransactionRecord(key1, version1, key2, version2, writekey, writeval, timestamp);
@@ -91,28 +93,32 @@ public class DadkvsServerState {
 	}
 
 	public void waitForTurn(int seqNum) throws InterruptedException {
-		System.out.println("[DadkvsServerState] Waiting for sequence number: " + seqNum);
+		DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Waiting for sequence number: %d\n", seqNum);
 		synchronized (this.sequenceNumber) {
 			while (this.sequenceNumber.getSequenceNumber() != seqNum) {
-					System.err.println("[DadkvsServerState] Waiting for sequence number: " + seqNum + " but current sequence number is " + this.sequenceNumber.getSequenceNumber());
-					this.sequenceNumber.wait();
-				}
+				DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
+						"Waiting for sequence number: %d but current sequence number is %d\n", seqNum, this.sequenceNumber.getSequenceNumber());
+				this.sequenceNumber.wait();
 			}
-			System.out.println("[DadkvsServerState] Sequence number " + seqNum + " is ready");
 		}
+		DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Sequence number %d is ready\n", seqNum);
+	}
 
-		public void updateSequenceNumber(int reqid, int seqNumber) {
-			synchronized (this.pendingCommits) {
-				this.pendingCommits.put(reqid, seqNumber);
-				this.pendingCommits.notifyAll();
-				System.out.println("[DadkvsServerState] Current pendingCommits list: " + this.pendingCommits);
-			}
+	public void updateSequenceNumber(int reqid, int seqNumber) {
+		synchronized (this.pendingCommits) {
+			this.pendingCommits.put(reqid, seqNumber);
+			this.pendingCommits.notifyAll();
+			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
+					"Sequence number %d updated for request with reqid %d\n", seqNumber, reqid);
+			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
+					"Current pendingCommits list: %s\n", this.pendingCommits);
 		}
+	}
 
-		public int getSequenceNumberForRequest(int reqid) {
-			synchronized (this.pendingCommits) {
-				return this.pendingCommits.getOrDefault(reqid, -1);
-			}
+	public int getSequenceNumberForRequest(int reqid) {
+		synchronized (this.pendingCommits) {
+			return this.pendingCommits.getOrDefault(reqid, -1);
 		}
+	}
 
 }
