@@ -41,6 +41,14 @@ public class MainLoop implements Runnable  {
 	    System.out.println("Main loop do work: waiting");
 	    try {
 		wait ();
+
+
+		switch (this.server_state.debug_mode) {
+			case 1:
+				System.out.println("Server Crashed");
+				System.exit(1);
+				break;
+		}
 	    }
 	    catch (InterruptedException e) {
 	    }

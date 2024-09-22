@@ -35,6 +35,8 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 		this.sequencerStub = DadkvsSequencerServiceGrpc.newBlockingStub(sequencerChannel);
 		this.port = 8080;
 		this.host = "localhost";
+
+		// create channels and stubs to communicate with other servers
 		this.targets = new String[n_servers];
 		this.serverChannels = new ManagedChannel[n_servers];
 		this.serverStubs = new DadkvsMainServiceGrpc.DadkvsMainServiceStub[n_servers];

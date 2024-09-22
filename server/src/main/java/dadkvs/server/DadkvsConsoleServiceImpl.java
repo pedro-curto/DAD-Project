@@ -44,10 +44,10 @@ public class DadkvsConsoleServiceImpl extends DadkvsConsoleServiceGrpc.DadkvsCon
 	boolean response_value = true;
 
 	this.server_state.debug_mode = request.getMode();
-	this.server_state.main_loop.wakeup();
-
 	// for debug purposes
 	System.out.println("Setting debug mode to = " + this.server_state.debug_mode);
+	this.server_state.main_loop.wakeup();
+
 
 	DadkvsConsole.SetDebugReply response =DadkvsConsole.SetDebugReply.newBuilder()
 	    .setAck(response_value).build();
