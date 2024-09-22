@@ -121,8 +121,35 @@ public class DadkvsServerState {
 		}
 	}
 
-		public boolean isServerFrozen() {
-			return this.debug_mode == 2;
+	public boolean isServerFrozen() {
+		return this.debug_mode == 2;
+		
+	}
+
+	public synchronized void waitRandomTime() {
+		try {
+			int randomTime = (int) (Math.random() * 3000) + 2000;
+			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Waiting random time (ms): %d\n", randomTime);
+			Thread.sleep(randomTime);
+		} catch (InterruptedException e) {
+			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Error waiting random time: %s\n", e.getMessage());
 		}
+		
+	}
+
+	public boolean checkFrozenOrDelay(){
+		switch (this.debug_mode) {
+			case 2:
+				DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Server Frozen\n");
+				return true;
+			case 4:
+				DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Server is waiting random time\n");
+				waitRandomTime();
+				return false;
+			default:
+				return false;
+		}
+
+	}
 
 }

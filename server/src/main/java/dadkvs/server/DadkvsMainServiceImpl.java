@@ -51,7 +51,7 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 	@Override
 	public void read(DadkvsMain.ReadRequest request, StreamObserver<DadkvsMain.ReadReply> responseObserver) {
 
-		if (server_state.isServerFrozen()) {
+		if(server_state.checkFrozenOrDelay()) {
 			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Server is frozen, cannot process read request\n");
 			return;
 		}
@@ -75,7 +75,7 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 	@Override
 	public void committx(DadkvsMain.CommitRequest request, StreamObserver<DadkvsMain.CommitReply> responseObserver) {
 
-		if (server_state.isServerFrozen()) {
+		if(server_state.checkFrozenOrDelay()) {
 			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Server is frozen, cannot process commit request\n");
 			return;
 		}
@@ -115,7 +115,7 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 	public void sequenceNumber(DadkvsMain.SequenceNumberRequest request,
 			StreamObserver<DadkvsMain.SequenceNumberResponse> responseObserver) {
 		
-		if (server_state.isServerFrozen()) {
+		if(server_state.checkFrozenOrDelay()) {
 			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
 					"Server is frozen, cannot process sequence-number request\n");
 			return;
@@ -136,7 +136,7 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 
 	private void sendToReplicas(int seqNumber, int reqId) {
 
-		if (server_state.isServerFrozen()) {
+		if(server_state.checkFrozenOrDelay()) {
 			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Server is frozen, cannot process send-to-replicas request\n");
 			return;
 		}
