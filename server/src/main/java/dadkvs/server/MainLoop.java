@@ -38,14 +38,19 @@ public class MainLoop implements Runnable {
 			try {
 				wait();
 
+				// Debugging
 				switch (this.server_state.debug_mode) {
 					case 1:
 						System.out.println("Server Crashed");
 						System.exit(1);
 						break;
-					case 2: // freeze server until it is unfrozen
+					case 2:
 						System.out.println("Server Frozen");
 						this.has_work = false;
+						break;
+					case 3:
+						System.out.println("Server Unfrozen");
+						this.has_work = true;
 						break;
 					default:
 						break;
