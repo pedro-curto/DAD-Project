@@ -114,12 +114,7 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 	@Override
 	public void sequenceNumber(DadkvsMain.SequenceNumberRequest request,
 			StreamObserver<DadkvsMain.SequenceNumberResponse> responseObserver) {
-		
-		if(server_state.checkFrozenOrDelay()) {
-			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
-					"Server is frozen, cannot process sequence-number request\n");
-			return;
-		}
+	
 
 		int seqNumber = request.getSeqnumber();
 		int reqId = request.getReqid();
@@ -136,10 +131,6 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 
 	private void sendToReplicas(int seqNumber, int reqId) {
 
-		if(server_state.checkFrozenOrDelay()) {
-			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Server is frozen, cannot process send-to-replicas request\n");
-			return;
-		}
 		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Sending request to replicas\n");
 		DadkvsMain.SequenceNumberRequest sequenceNumberRequest = DadkvsMain.SequenceNumberRequest.newBuilder()
 				.setSeqnumber(seqNumber).setReqid(reqId).build();
