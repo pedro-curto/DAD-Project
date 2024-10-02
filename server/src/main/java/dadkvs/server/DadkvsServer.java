@@ -19,6 +19,7 @@ public class DadkvsServer {
 		// TODO -- add check to debug mode variable
 		System.out.printf("[DEBUG %s] ", debugClass);
 		System.out.printf(format, args);
+		System.out.println();
 	}
     
     public static void main(String[] args) throws Exception {

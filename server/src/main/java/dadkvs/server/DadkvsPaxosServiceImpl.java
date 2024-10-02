@@ -1,7 +1,6 @@
 
 package dadkvs.server;
 
-
 import java.util.ArrayList;
 import java.util.Iterator;
 
@@ -19,35 +18,73 @@ import io.grpc.stub.StreamObserver;
 
 public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosServiceImplBase {
 
+	DadkvsServerState server_state;
 
-    DadkvsServerState server_state;
-    
-    
-    public DadkvsPaxosServiceImpl(DadkvsServerState state) {
-	this.server_state = state;
-	
-    }
-    
+	public DadkvsPaxosServiceImpl(DadkvsServerState state) {
+		this.server_state = state;
 
-    @Override
-    public void phaseone(DadkvsPaxos.PhaseOneRequest request, StreamObserver<DadkvsPaxos.PhaseOneReply> responseObserver) {
-	// for debug purposes
-	System.out.println("Receive phase1 request: " + request);
+	}
 
-    }
+	@Override
+	public void phaseone(DadkvsPaxos.PhaseOneRequest request,
+			StreamObserver<DadkvsPaxos.PhaseOneReply> responseObserver) {
+		// receives prepare and sends promise
+		// for debug purposes
+		DadkvsServer.debug(this.getClass().getName(),
+				"Receive phase one request AKA PREPARE with round number: " + request.getPhase1RoundNumber());
+		int proposedRoundNumber = request.getPhase1RoundNumber();
+		if (proposedRoundNumber > this.server_state.getLatestAcceptedRoundNumber()) {
+			// if the proposal number i'm getting is bigger than mine, I promise to accept
+			// it
+			DadkvsServer.debug(this.getClass().getName(), "Accepting proposal number AKA SENDING PROMISE: " + proposedRoundNumber);
+			this.server_state.setLatestAcceptedRoundNumber(proposedRoundNumber);
+			DadkvsPaxos.PhaseOneReply reply = DadkvsPaxos.PhaseOneReply.newBuilder()
+					.setPhase1Accepted(true)
+					.setPhase1Timestamp(this.server_state.getWriteTimestamp()).build();
+			responseObserver.onNext(reply);
+			responseObserver.onCompleted();
+		} else {
+			// the proposal number is smaller than mine; I promised to accept a bigger one,
+			// so I reject this one
+			DadkvsServer.debug(this.getClass().getName(), "Rejecting proposal number: " + proposedRoundNumber);
+			DadkvsPaxos.PhaseOneReply reply = DadkvsPaxos.PhaseOneReply.newBuilder().setPhase1Accepted(false).build();
+			responseObserver.onNext(reply);
+			responseObserver.onCompleted();
+		}
 
-    @Override
-    public void phasetwo(DadkvsPaxos.PhaseTwoRequest request, StreamObserver<DadkvsPaxos.PhaseTwoReply> responseObserver) {
-	// for debug purposes
-	System.out.println ("Receive phase two request: " + request);
+	}
 
-    }
+	@Override
+	public void phasetwo(DadkvsPaxos.PhaseTwoRequest request,
+			StreamObserver<DadkvsPaxos.PhaseTwoReply> responseObserver) {
+		// for debug purposes
+		System.out.println("Receive phase two AKA ACCEPT REQUEST request: " + request);
+		int proposedRoundNumber = request.getPhase2RoundNumber();
+		if (proposedRoundNumber == this.server_state.getLatestAcceptedRoundNumber()) {
+			// if the proposal number is the same as the one I promised to accept, I accept
+			// the value
+			DadkvsServer.debug(this.getClass().getName(), "Accepting value AKA SENDING ACCEPTED: " + request.getPhase2Timestamp());
+			this.server_state.setLatestAcceptedRoundNumber(proposedRoundNumber);
+			DadkvsPaxos.PhaseTwoReply reply = DadkvsPaxos.PhaseTwoReply.newBuilder().setPhase2Accepted(true).build();
+			responseObserver.onNext(reply);
+			responseObserver.onCompleted();
+		} else {
+			// the proposal number is different from the one I promised to accept, so I
+			// reject the value
+			DadkvsServer.debug(this.getClass().getName(), "Rejecting value AKA SENDING ACCEPTED: " + request.getPhase2Timestamp());
+			DadkvsPaxos.PhaseTwoReply reply = DadkvsPaxos.PhaseTwoReply.newBuilder().setPhase2Accepted(false).build();
+			responseObserver.onNext(reply);
+			responseObserver.onCompleted();
+		}
 
-    @Override
-    public void learn(DadkvsPaxos.LearnRequest request, StreamObserver<DadkvsPaxos.LearnReply> responseObserver) {
-	// for debug purposes
-	System.out.println("Receive learn request: " + request);
 
-    }
+	}
+
+	@Override
+	public void learn(DadkvsPaxos.LearnRequest request, StreamObserver<DadkvsPaxos.LearnReply> responseObserver) {
+		// for debug purposes
+		System.out.println("Receive learn request: " + request);
+
+	}
 
 }

@@ -87,7 +87,7 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 		int sequenceNumber = -1;
 		int reqId = request.getReqid();
 
-		if (this.server_state.isLeader()) {
+		/* if (this.server_state.isLeader()) {
 			// gets the request sequence number from the sequencer
 			DadkvsSequencer.GetSeqNumberRequest seqRequest = DadkvsSequencer.GetSeqNumberRequest.newBuilder().build();
 			DadkvsSequencer.GetSeqNumberResponse seqResponse = this.sequencerStub.getSeqNumber(seqRequest);
@@ -95,9 +95,10 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "SeqNumber is %d\n", sequenceNumber);
 			// sends the request to all servers
 			sendToReplicas(sequenceNumber, reqId);
-		}
+		} */
 		this.timestamp++;
-		result = this.server_state.processTransaction(request, sequenceNumber, this.timestamp);
+		//result = this.server_state.processTransaction(request, sequenceNumber, this.timestamp);
+		result = this.server_state.runPaxos(request);
 		if (result) {
 			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Transaction committed successfully for reqid %d\n", reqId);
 		} else {

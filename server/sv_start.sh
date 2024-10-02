@@ -25,16 +25,17 @@ trap cleanup SIGINT
 cleanup
 
 # initialize sequencer
-cd ../sequencer
-mvn compile exec:java | ts '%Y-%m-%d %H:%M:%S' > "../server/logs/sequencer.log" &
-pids+=($!)
+echo "Starting sequencer SIKE BITCH"
+#cd ../sequencer
+#mvn compile exec:java | ts '%Y-%m-%d %H:%M:%S' > "../server/logs/sequencer.log" &
+#pids+=($!)
 
 # awaits for the string "Sequencer server started" in the sequencer log to start the servers
 cd ../server
-while ! grep -q "Sequencer server started" logs/sequencer.log
-do
-  sleep 1
-done
+#while ! grep -q "Sequencer server started" logs/sequencer.log
+#do
+#  sleep 1
+#done
 
 for i in $(seq 0 $((num_servers - 1)))
 do

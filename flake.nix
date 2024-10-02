@@ -70,6 +70,7 @@
               javaPkg
               mavenPkg
               git
+              ts
 
               #Utils
               patchProtoc
