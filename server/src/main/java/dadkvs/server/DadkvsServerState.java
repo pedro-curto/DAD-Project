@@ -34,7 +34,7 @@ public class DadkvsServerState {
 	private int n_acceptors;
 	private int n_proposers;
 
-	private int writeTimestamp = 0;
+	private int currentReqId = 0;
 	private int latestAcceptedRoundNumber = 0;
 
 	public DadkvsServerState(int kv_size, int port, int myself) {
@@ -70,21 +70,28 @@ public class DadkvsServerState {
 		synchronized (paxosLock) {
 			// check if server is leader
 			if (!this.isLeader()) {
+				// should wait for leader to process request
 				DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
-						"Server is not the leader, cannot process paxos request\n");
-				return false;
+						"Server is not the leader, waiting for leader to process request");
+						
 			}
 			// check if server is the leader
 			if (this.isLeader()) {
 				DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
-						"Server is the leader, processing paxos request\n");
+						"Server is the leader, processing paxos request");
 				// send prepare
 				int roundNumber = generateRoundNumber();
+				DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
+						"Generated round number for paxos: %d", roundNumber);
+				DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Going to run phase 1");
 				boolean phaseOneResult = runPaxosPhase1(roundNumber);
+				DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Phase 1 result: %b", phaseOneResult);
 
 				if (phaseOneResult) {
 					// send accept
-					boolean phaseTwoResult = runPaxosPhase2(roundNumber, this.writeTimestamp);
+					DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Going to run phase 2");
+					boolean phaseTwoResult = runPaxosPhase2(roundNumber, request.getReqid(), request);
+					DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Phase 2 result: %b", phaseTwoResult);
 					return phaseTwoResult;
 				}
 			}
@@ -111,8 +118,7 @@ public class DadkvsServerState {
 					phaseOneCollector);
 
 			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
-					"Sending PhaseOneRequest of round number %d acceptor %d wi\n", roundNumber, i);
-
+					"Sending PREPARE of round number %d to acceptor %d\n", roundNumber, i);
 			paxosStub.phaseone(phaseOneRequest, phaseOneObserver);
 		}
 
@@ -121,7 +127,7 @@ public class DadkvsServerState {
 
 		// check if majority of replies are received
 		int promisesCounter = 0;
-		int new_wrt_timestamp = -1;
+		int new_reqId = -1;
 		int maxRepliedRoundNumber = -1;
 		for (DadkvsPaxos.PhaseOneReply reply : phaseOneReplies) {
 			if (reply.getPhase1Accepted()) {
@@ -129,18 +135,17 @@ public class DadkvsServerState {
 
 				if (reply.getPhase1RoundNumber() > maxRepliedRoundNumber) {
 					maxRepliedRoundNumber = reply.getPhase1RoundNumber();
-					new_wrt_timestamp = reply.getPhase1Timestamp();
+					new_reqId = reply.getPhase1Reqid();
 				}
-			}
-			else {
-				// TODO:  RETRY AGAIN WITH ROUND NUMBER = ROUND NUMBER + 1
+			} else {
+				// TODO: RETRY AGAIN WITH ROUND NUMBER = ROUND NUMBER + 1
 			}
 		}
 		if (promisesCounter >= majority) {
 			DadkvsServer.debug(this.getClass().getSimpleName(),
 					"Received majority of promises for round number " + roundNumber);
 			// update to new write timestamp
-			this.writeTimestamp = new_wrt_timestamp;
+			this.currentReqId = new_reqId;
 		} else {
 			DadkvsServer.debug(this.getClass().getSimpleName(),
 					"Did not receive majority of promises for round number " + roundNumber);
@@ -149,13 +154,13 @@ public class DadkvsServerState {
 		return promisesCounter >= majority;
 	}
 
-	public boolean runPaxosPhase2(int roundNumber, int writeTimestamp) {
+	public boolean runPaxosPhase2(int roundNumber, int reqId, DadkvsMain.CommitRequest request) {
 		int majority = (n_acceptors / 2) + 1;
 
 		// constructs request
 		DadkvsPaxos.PhaseTwoRequest phaseTwoRequest = DadkvsPaxos.PhaseTwoRequest.newBuilder()
 				.setPhase2RoundNumber(roundNumber)
-				.setPhase2Timestamp(writeTimestamp)
+				.setPhase2Reqid(reqId)
 				.build();
 
 		ArrayList<DadkvsPaxos.PhaseTwoReply> phaseTwoReplies = new ArrayList<>();
@@ -169,7 +174,7 @@ public class DadkvsServerState {
 					phaseTwoCollector);
 
 			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
-					"Sending PhaseTwoRequest of round number %d acceptor %d\n", roundNumber, i);
+					"Sending ACCEPT of round number %d to acceptor %d with reqid %d\n", roundNumber, i, reqId);
 
 			paxosStub.phasetwo(phaseTwoRequest, phaseTwoObserver);
 		}
@@ -187,6 +192,12 @@ public class DadkvsServerState {
 		if (acceptsCounter >= majority) {
 			DadkvsServer.debug(this.getClass().getSimpleName(),
 					"Received majority of accepts for round number " + roundNumber);
+			// writet the key
+			TransactionRecord txRecord = new TransactionRecord(request.getKey1(), request.getVersion1(),
+					request.getKey2(),
+					request.getVersion2(), request.getWritekey(), request.getWriteval());
+			boolean commitResult = this.store.commit(txRecord);
+			return commitResult;
 		} else {
 			DadkvsServer.debug(this.getClass().getSimpleName(),
 					"Did not receive majority of accepts for round number " + roundNumber);
@@ -194,79 +205,129 @@ public class DadkvsServerState {
 
 		return acceptsCounter >= majority;
 	}
-/* 
-	public boolean processTransaction(DadkvsMain.CommitRequest request, int sequenceNumber, int timestamp) {
-		// TODO -> we need to remove the entry from the pendingCommits list after the
-		// transaction is processed
-		int reqid = request.getReqid();
-		int key1 = request.getKey1();
-		int version1 = request.getVersion1();
-		int key2 = request.getKey2();
-		int version2 = request.getVersion2();
-		int writekey = request.getWritekey();
-		int writeval = request.getWriteval();
 
-		// waits for sequence number to be placed in the pendingCommits list
-		if (!this.isLeader()) {
-			synchronized (this.pendingCommits) {
-				while (sequenceNumber == -1) {
-					sequenceNumber = this.getSequenceNumberForRequest(reqid);
-					if (sequenceNumber == -1) {
-						DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
-								"Waiting for sequence number for reqid: %d\n", reqid);
-						try {
-							this.pendingCommits.wait();
-						} catch (InterruptedException e) {
-							DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
-									"Error waiting for sequence number: %s\n", e.getMessage());
-						}
-					}
-				}
+	public boolean learn(int roundNumber, int reqId) {
+		// constructs request
+		int majority = (n_servers / 2) + 1;
+
+		DadkvsPaxos.LearnRequest learnRequest = DadkvsPaxos.LearnRequest.newBuilder()
+				.setLearnroundnumber(roundNumber)
+				.setLearnreqid(reqId)
+				.build();
+
+		ArrayList<DadkvsPaxos.LearnReply> learnReplies = new ArrayList<>();
+		GenericResponseCollector<DadkvsPaxos.LearnReply> learnCollector = new GenericResponseCollector<>(
+				learnReplies, n_servers);
+
+		// sends LEARN to all servers
+		for (int i = 0; i < n_servers; i++) {
+			DadkvsPaxosServiceGrpc.DadkvsPaxosServiceStub paxosStub = paxosStubs[i];
+			CollectorStreamObserver<DadkvsPaxos.LearnReply> learnObserver = new CollectorStreamObserver<>(
+					learnCollector);
+
+			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
+					"Sending LEARN of round number %d to server %d with reqid %d\n", roundNumber, i, reqId);
+
+			paxosStub.learn(learnRequest, learnObserver);
+		}
+
+		// waits for majority of replies
+		learnCollector.waitForTarget(majority);
+
+		// check if majority of replies are received
+		int learnsCounter = 0;
+		for (DadkvsPaxos.LearnReply reply : learnReplies) {
+			if (reply.getLearnaccepted()) {
+				learnsCounter++;
 			}
 		}
-		// waits to execute request based on its sequence number
-		try {
-			waitForTurn(sequenceNumber);
-		} catch (InterruptedException e) {
-			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Error waiting for turn: %s\n", e.getMessage());
+		if (learnsCounter >= majority) {
+			DadkvsServer.debug(this.getClass().getSimpleName(),
+					"Received majority of learns for round number " + roundNumber);
+		} else {
+			DadkvsServer.debug(this.getClass().getSimpleName(),
+					"Did not receive majority of learns for round number " + roundNumber);
 		}
-		// commits transaction
-		TransactionRecord txRecord = new TransactionRecord(key1, version1, key2, version2, writekey, writeval,
-				timestamp);
-		boolean commitResult = this.store.commit(txRecord);
-		this.incrementSequenceNumber();
-		return commitResult;
-	} */
+		return learnsCounter >= majority;
+	}
+
+	
+/* 	 public boolean processTransaction(DadkvsMain.CommitRequest request, int
+	  sequenceNumber, int timestamp) {
+	  // TODO -> we need to remove the entry from the pendingCommits list after the
+	  // transaction is processed
+	  int reqid = request.getReqid();
+	  int key1 = request.getKey1();
+	  int version1 = request.getVersion1();
+	 int key2 = request.getKey2();
+	  int version2 = request.getVersion2();
+	  int writekey = request.getWritekey();
+	  int writeval = request.getWriteval();
+	  
+	  // waits for sequence number to be placed in the pendingCommits list
+	  if (!this.isLeader()) {
+	  synchronized (this.pendingCommits) {
+	  while (sequenceNumber == -1) {
+	  sequenceNumber = this.getSequenceNumberForRequest(reqid);
+	  if (sequenceNumber == -1) {
+	  DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
+	  "Waiting for sequence number for reqid: %d\n", reqid);
+	  try {
+	  this.pendingCommits.wait();
+	  } catch (InterruptedException e) {
+	  DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
+	  "Error waiting for sequence number: %s\n", e.getMessage());
+	  }
+	  }
+	  }
+	  }
+	  }
+	  // waits to execute request based on its sequence number
+	  try {
+	  waitForTurn(sequenceNumber);
+	  } catch (InterruptedException e) {
+	  DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
+	  "Error waiting for turn: %s\n", e.getMessage());
+	  }
+	  // commits transaction
+	  TransactionRecord txRecord = new TransactionRecord(key1, version1, key2,
+	  version2, writekey, writeval,
+	  timestamp);
+	  boolean commitResult = this.store.commit(txRecord);
+	  this.incrementSequenceNumber();
+	  return commitResult;
+	  } */
+	 
 
 	public boolean isLeader() {
 		return i_am_leader;
 	}
 
-	/*
-	 * public int getSequenceNumber() {
-	 * return this.sequenceNumber.getSequenceNumber();
-	 * }
-	 * 
-	 * public void incrementSequenceNumber() {
-	 * this.sequenceNumber.incrementSequenceNumber();
-	 * }
-	 * 
-	 * public void waitForTurn(int seqNum) throws InterruptedException {
-	 * DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
-	 * "Waiting for sequence number: %d\n", seqNum);
-	 * synchronized (this.sequenceNumber) {
-	 * while (this.sequenceNumber.getSequenceNumber() != seqNum) {
-	 * DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
-	 * "Waiting for sequence number: %d but current sequence number is %d\n",
-	 * seqNum,
-	 * this.sequenceNumber.getSequenceNumber());
-	 * this.sequenceNumber.wait();
-	 * }
-	 * }
-	 * DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
-	 * "Sequence number %d is ready\n", seqNum);
-	 * }
-	 */
+	
+/* 	  public int getSequenceNumber() {
+	  return this.sequenceNumber.getSequenceNumber();
+	  }
+	  
+	  public void incrementSequenceNumber() {
+	  this.sequenceNumber.incrementSequenceNumber();
+	  }
+	  
+	  public void waitForTurn(int seqNum) throws InterruptedException {
+	  DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
+	  "Waiting for sequence number: %d\n", seqNum);
+	  synchronized (this.sequenceNumber) {
+	  while (this.sequenceNumber.getSequenceNumber() != seqNum) {
+	  DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
+	  "Waiting for sequence number: %d but current sequence number is %d\n",
+	  seqNum,
+	  this.sequenceNumber.getSequenceNumber());
+	  this.sequenceNumber.wait();
+	  }
+	  }
+	  DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
+	  "Sequence number %d is ready\n", seqNum);
+	  } */
+	 
 
 	public void updateSequenceNumber(int reqid, int seqNumber) {
 		synchronized (this.pendingCommits) {
@@ -332,12 +393,20 @@ public class DadkvsServerState {
 		this.latestAcceptedRoundNumber = latestAcceptedRoundNumber;
 	}
 
-	public int getWriteTimestamp() {
-		return writeTimestamp;
+	public int getCurrentReqId() {
+		return currentReqId;
 	}
 
-	public void setWriteTimestamp(int writeTimestamp) {
-		this.writeTimestamp = writeTimestamp;
+	public void setCurrentReqId(int currentReqId) {
+		this.currentReqId = currentReqId;
+	}
+
+	public ManagedChannel[] getServerChannels() {
+		return serverChannels;
+	}
+
+	public DadkvsPaxosServiceGrpc.DadkvsPaxosServiceStub[] getPaxosStubs() {
+		return paxosStubs;
 	}
 
 }

@@ -12,7 +12,6 @@ cleanup() {
     port=$((base_port + i))
     fuser -k ${port}/tcp
   done
-  fuser -k 8090/tcp
   for pid in "${pids[@]}"
   do
     kill $pid

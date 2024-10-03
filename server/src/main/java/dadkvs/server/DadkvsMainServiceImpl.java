@@ -84,27 +84,20 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 				"Receiving commit request with reqid %d to read keys %d and %d and write key %d with value %d\n",
 				request.getReqid(), request.getKey1(), request.getKey2(), request.getWritekey(), request.getWriteval());
 		boolean result;
-		int sequenceNumber = -1;
 		int reqId = request.getReqid();
 
-		/* if (this.server_state.isLeader()) {
-			// gets the request sequence number from the sequencer
-			DadkvsSequencer.GetSeqNumberRequest seqRequest = DadkvsSequencer.GetSeqNumberRequest.newBuilder().build();
-			DadkvsSequencer.GetSeqNumberResponse seqResponse = this.sequencerStub.getSeqNumber(seqRequest);
-			sequenceNumber = seqResponse.getSeqNumber();
-			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "SeqNumber is %d\n", sequenceNumber);
-			// sends the request to all servers
-			sendToReplicas(sequenceNumber, reqId);
-		} */
 		this.timestamp++;
 		//result = this.server_state.processTransaction(request, sequenceNumber, this.timestamp);
 		result = this.server_state.runPaxos(request);
+
 		if (result) {
 			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Transaction committed successfully for reqid %d\n", reqId);
+			// write
 		} else {
 			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Transaction failed for reqid %d\n", reqId);
+			return;
 		}
-		// for debug purposes
+		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "RESULT OF PAXOS: %b\n", result);
 		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Sending commit reply for reqid %d\n\n", reqId);
 		DadkvsMain.CommitReply response = DadkvsMain.CommitReply.newBuilder()
 				.setReqid(reqId).setAck(result).build();

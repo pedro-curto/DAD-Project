@@ -14,14 +14,14 @@ message PhaseOneReply {
   int32 phase1config    = 1;
   int32 phase1index     = 2;
   bool  phase1accepted  = 3; // true if the request is accepted (aka, the roundnumber is bigger than the current roundnumber)
-  int32 phase1timestamp     = 4; // the value that is accepted
+  int32 phase1reqid     = 4; // the value that is accepted
   int32 phase1roundNumber = 5; // the roundnumber corresponding to the value
 }
 
 message PhaseTwoRequest {
   int32 phase2config    = 1;
   int32 phase2index     = 2;
-  int32 phase2timestamp     = 3; // the value that is accepted
+  int32 phase2reqid     = 3; // the value that is accepted
   int32 phase2roundNumber = 4; //
 }
 
@@ -34,8 +34,8 @@ message PhaseTwoReply {
 message LearnRequest {
   int32 learnconfig    = 1;
   int32 learnindex     = 2;
-  int32 learnvalue     = 3;
-  int32 learntimestamp = 4;
+  int32 learnreqid     = 3;
+  int32 learnroundnumber = 4;
 }
 
 message LearnReply {

@@ -31,22 +31,24 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 		// receives prepare and sends promise
 		// for debug purposes
 		DadkvsServer.debug(this.getClass().getName(),
-				"Receive phase one request AKA PREPARE with round number: " + request.getPhase1RoundNumber());
+				"Receive a PREPARE request with round number: " + request.getPhase1RoundNumber());
 		int proposedRoundNumber = request.getPhase1RoundNumber();
 		if (proposedRoundNumber > this.server_state.getLatestAcceptedRoundNumber()) {
 			// if the proposal number i'm getting is bigger than mine, I promise to accept
 			// it
-			DadkvsServer.debug(this.getClass().getName(), "Accepting proposal number AKA SENDING PROMISE: " + proposedRoundNumber);
+			DadkvsServer.debug(this.getClass().getName(), "Accepting proposal roundNumber: " + proposedRoundNumber);
 			this.server_state.setLatestAcceptedRoundNumber(proposedRoundNumber);
 			DadkvsPaxos.PhaseOneReply reply = DadkvsPaxos.PhaseOneReply.newBuilder()
 					.setPhase1Accepted(true)
-					.setPhase1Timestamp(this.server_state.getWriteTimestamp()).build();
+					.setPhase1Reqid(this.server_state.getCurrentReqId()).build();
+			DadkvsServer.debug(this.getClass().getName(),
+					"Sending PROMISE with reqid: " + this.server_state.getCurrentReqId());
 			responseObserver.onNext(reply);
 			responseObserver.onCompleted();
 		} else {
 			// the proposal number is smaller than mine; I promised to accept a bigger one,
 			// so I reject this one
-			DadkvsServer.debug(this.getClass().getName(), "Rejecting proposal number: " + proposedRoundNumber);
+			DadkvsServer.debug(this.getClass().getName(), "Rejecting proposal roundNumber: " + proposedRoundNumber);
 			DadkvsPaxos.PhaseOneReply reply = DadkvsPaxos.PhaseOneReply.newBuilder().setPhase1Accepted(false).build();
 			responseObserver.onNext(reply);
 			responseObserver.onCompleted();
@@ -58,32 +60,63 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 	public void phasetwo(DadkvsPaxos.PhaseTwoRequest request,
 			StreamObserver<DadkvsPaxos.PhaseTwoReply> responseObserver) {
 		// for debug purposes
-		System.out.println("Receive phase two AKA ACCEPT REQUEST request: " + request);
+		DadkvsServer.debug(this.getClass().getName(),
+				"Receive an ACCEPT-REQUEST request with round number %d and reqid %d\n", request.getPhase2RoundNumber(),
+				request.getPhase2Reqid());
 		int proposedRoundNumber = request.getPhase2RoundNumber();
 		if (proposedRoundNumber == this.server_state.getLatestAcceptedRoundNumber()) {
 			// if the proposal number is the same as the one I promised to accept, I accept
 			// the value
-			DadkvsServer.debug(this.getClass().getName(), "Accepting value AKA SENDING ACCEPTED: " + request.getPhase2Timestamp());
+			DadkvsServer.debug(this.getClass().getName(), "Accepting value of reqId %d ,will send ACCEPTED.",
+					request.getPhase2Reqid());
 			this.server_state.setLatestAcceptedRoundNumber(proposedRoundNumber);
 			DadkvsPaxos.PhaseTwoReply reply = DadkvsPaxos.PhaseTwoReply.newBuilder().setPhase2Accepted(true).build();
 			responseObserver.onNext(reply);
 			responseObserver.onCompleted();
+			this.server_state.learn(request.getPhase2RoundNumber(), request.getPhase2Reqid());
+
 		} else {
 			// the proposal number is different from the one I promised to accept, so I
 			// reject the value
-			DadkvsServer.debug(this.getClass().getName(), "Rejecting value AKA SENDING ACCEPTED: " + request.getPhase2Timestamp());
+			DadkvsServer.debug(this.getClass().getName(), "Rejecting value of reqID %d, will send REJECTED.",
+					request.getPhase2Reqid());
 			DadkvsPaxos.PhaseTwoReply reply = DadkvsPaxos.PhaseTwoReply.newBuilder().setPhase2Accepted(false).build();
 			responseObserver.onNext(reply);
 			responseObserver.onCompleted();
 		}
-
 
 	}
 
 	@Override
 	public void learn(DadkvsPaxos.LearnRequest request, StreamObserver<DadkvsPaxos.LearnReply> responseObserver) {
 		// for debug purposes
-		System.out.println("Receive learn request: " + request);
+		DadkvsServer.debug(this.getClass().getName(),
+				"Receive a LEARN request with round number %d and reqid %d\n", request.getLearnroundnumber(),
+				request.getLearnreqid());
+		// if the roundnumber is equal or bigger than the one I promised to accept, I
+		// accept the value
+		if (request.getLearnroundnumber() >= this.server_state.getLatestAcceptedRoundNumber()) {
+			DadkvsServer.debug(this.getClass().getName(), "Accepting value of reqId %d, will send LEARN-ACCEPTED.",
+					request.getLearnreqid());
+			this.server_state.setLatestAcceptedRoundNumber(request.getLearnroundnumber());
+			DadkvsPaxos.LearnReply reply = DadkvsPaxos.LearnReply.newBuilder().setLearnaccepted(true).build();
+			DadkvsServer.debug(this.getClass().getName(), "Sending LEARN-REPLY with round number %d and reqid %d\n",
+					request.getLearnroundnumber(), request.getLearnreqid());
+			responseObserver.onNext(reply);
+			responseObserver.onCompleted();
+
+		} else {
+			// the roundnumber is smaller than the one I promised to accept, so I reject the
+			// value
+			DadkvsServer.debug(this.getClass().getName(), "Rejecting value of reqID %d, will send LEARN-REJECTED.",
+					request.getLearnreqid());
+			DadkvsPaxos.LearnReply reply = DadkvsPaxos.LearnReply.newBuilder().setLearnaccepted(false).build();
+			DadkvsServer.debug(this.getClass().getName(), "Sending LEARN-REPLY with round number %d and reqid %d\n",
+					request.getLearnroundnumber(), request.getLearnreqid());
+			responseObserver.onNext(reply);
+			responseObserver.onCompleted();
+
+		}
 
 	}
 
