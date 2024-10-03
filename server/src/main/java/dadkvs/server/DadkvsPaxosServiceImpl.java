@@ -95,17 +95,18 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 				request.getLearnreqid());
 		// if the roundnumber is equal or bigger than the one I promised to accept, I
 		// accept the value
-		if (request.getLearnroundnumber() >= this.server_state.getLatestAcceptedRoundNumber()) {
+		//if (request.getLearnroundnumber() >= this.server_state.getLatestAcceptedRoundNumber()) {
 			DadkvsServer.debug(this.getClass().getName(), "Accepting value of reqId %d, will send LEARN-ACCEPTED.",
 					request.getLearnreqid());
 			this.server_state.setLatestAcceptedRoundNumber(request.getLearnroundnumber());
 			DadkvsPaxos.LearnReply reply = DadkvsPaxos.LearnReply.newBuilder().setLearnaccepted(true).build();
 			DadkvsServer.debug(this.getClass().getName(), "Sending LEARN-REPLY with round number %d and reqid %d\n",
 					request.getLearnroundnumber(), request.getLearnreqid());
+			
 			responseObserver.onNext(reply);
 			responseObserver.onCompleted();
 
-		} else {
+		/* } else {
 			// the roundnumber is smaller than the one I promised to accept, so I reject the
 			// value
 			DadkvsServer.debug(this.getClass().getName(), "Rejecting value of reqID %d, will send LEARN-REJECTED.",
@@ -116,7 +117,7 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 			responseObserver.onNext(reply);
 			responseObserver.onCompleted();
 
-		}
+		} */
 
 	}
 

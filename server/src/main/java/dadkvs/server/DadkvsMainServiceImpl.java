@@ -51,8 +51,9 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 	@Override
 	public void read(DadkvsMain.ReadRequest request, StreamObserver<DadkvsMain.ReadReply> responseObserver) {
 
-		if(server_state.checkFrozenOrDelay()) {
-			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Server is frozen, cannot process read request\n");
+		if (server_state.checkFrozenOrDelay()) {
+			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
+					"Server is frozen, cannot process read request\n");
 			return;
 		}
 
@@ -75,8 +76,9 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 	@Override
 	public void committx(DadkvsMain.CommitRequest request, StreamObserver<DadkvsMain.CommitReply> responseObserver) {
 
-		if(server_state.checkFrozenOrDelay()) {
-			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Server is frozen, cannot process commit request\n");
+		if (server_state.checkFrozenOrDelay()) {
+			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
+					"Server is frozen, cannot process commit request\n");
 			return;
 		}
 		// for debug purposes
@@ -87,12 +89,20 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 		int reqId = request.getReqid();
 
 		this.timestamp++;
-		//result = this.server_state.processTransaction(request, sequenceNumber, this.timestamp);
-		result = this.server_state.runPaxos(request);
+		// if im the leader, run paxos
+		if (server_state.isLeader()) {
+			result = this.server_state.runPaxos(request);
+		} else {
+			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "I am not the leader\n");
+			return;
+
+		}
 
 		if (result) {
-			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Transaction committed successfully for reqid %d\n", reqId);
-			// write
+			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
+					"Transaction committed successfully for reqid %d\n", reqId);
+			// write - NO need to do this as the write in when a server recieves the learn
+			// reply
 		} else {
 			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Transaction failed for reqid %d\n", reqId);
 			return;
@@ -108,7 +118,6 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 	@Override
 	public void sequenceNumber(DadkvsMain.SequenceNumberRequest request,
 			StreamObserver<DadkvsMain.SequenceNumberResponse> responseObserver) {
-	
 
 		int seqNumber = request.getSeqnumber();
 		int reqId = request.getReqid();

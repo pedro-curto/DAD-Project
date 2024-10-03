@@ -252,6 +252,12 @@ public class DadkvsServerState {
 	}
 
 	
+/* 	public boolean processTransaction(int reqId) {
+		// get req with reqId from pendingCommits
+		Integer request = this.pendingCommits.get(reqId);
+		
+	} */
+	
 /* 	 public boolean processTransaction(DadkvsMain.CommitRequest request, int
 	  sequenceNumber, int timestamp) {
 	  // TODO -> we need to remove the entry from the pendingCommits list after the
