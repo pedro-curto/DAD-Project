@@ -15,7 +15,7 @@ message PhaseOneReply {
   int32 phase1index     = 2;
   bool  phase1accepted  = 3; // true if the request is accepted (aka, the roundnumber is bigger than the current roundnumber)
   int32 phase1reqid     = 4; // the value that is accepted
-  int32 phase1roundNumber = 5; // the roundnumber corresponding to the value
+  int32 phase1timestamp= 5; // the timestamp corresponding to the value
 }
 
 message PhaseTwoRequest {

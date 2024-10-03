@@ -87,8 +87,8 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 				request.getReqid(), request.getKey1(), request.getKey2(), request.getWritekey(), request.getWriteval());
 		boolean result;
 		int reqId = request.getReqid();
-
 		this.timestamp++;
+		this.server_state.addToPendingCommits(reqId, request);
 		// if im the leader, run paxos
 		if (server_state.isLeader()) {
 			result = this.server_state.runPaxos(request);
@@ -115,7 +115,7 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 		responseObserver.onCompleted();
 	}
 
-	@Override
+	/*@Override
 	public void sequenceNumber(DadkvsMain.SequenceNumberRequest request,
 			StreamObserver<DadkvsMain.SequenceNumberResponse> responseObserver) {
 
@@ -130,9 +130,9 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 				.build();
 		responseObserver.onNext(response);
 		responseObserver.onCompleted();
-	}
+	}*/
 
-	private void sendToReplicas(int seqNumber, int reqId) {
+	/*private void sendToReplicas(int seqNumber, int reqId) {
 
 		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Sending request to replicas\n");
 		DadkvsMain.SequenceNumberRequest sequenceNumberRequest = DadkvsMain.SequenceNumberRequest.newBuilder()
@@ -148,6 +148,6 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 		sequenceNumberCollector.waitForTarget(n_servers);
 		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
 				"Received all responses from replicas\n");
-	}
+	}*/
 
 }

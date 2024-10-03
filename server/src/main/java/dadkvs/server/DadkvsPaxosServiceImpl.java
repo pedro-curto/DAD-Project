@@ -32,7 +32,10 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 		// for debug purposes
 		DadkvsServer.debug(this.getClass().getName(),
 				"Receive a PREPARE request with round number: " + request.getPhase1RoundNumber());
+		int proposedIndex = request.getPhase1Index();
+		int newReqId = this.server_state.checkTotalOrderIndexAvailability(proposedIndex);
 		int proposedRoundNumber = request.getPhase1RoundNumber();
+
 		if (proposedRoundNumber > this.server_state.getLatestAcceptedRoundNumber()) {
 			// if the proposal number i'm getting is bigger than mine, I promise to accept
 			// it
@@ -40,7 +43,9 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 			this.server_state.setLatestAcceptedRoundNumber(proposedRoundNumber);
 			DadkvsPaxos.PhaseOneReply reply = DadkvsPaxos.PhaseOneReply.newBuilder()
 					.setPhase1Accepted(true)
-					.setPhase1Reqid(this.server_state.getCurrentReqId()).build();
+					.setPhase1Reqid(newReqId)
+					.setPhase1Timestamp(this.server_state.getCurrentTimestamp())
+					.build();
 			DadkvsServer.debug(this.getClass().getName(),
 					"Sending PROMISE with reqid: " + this.server_state.getCurrentReqId());
 			responseObserver.onNext(reply);
@@ -96,9 +101,12 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 		// if the roundnumber is equal or bigger than the one I promised to accept, I
 		// accept the value
 		//if (request.getLearnroundnumber() >= this.server_state.getLatestAcceptedRoundNumber()) {
-			DadkvsServer.debug(this.getClass().getName(), "Accepting value of reqId %d, will send LEARN-ACCEPTED.",
-					request.getLearnreqid());
-			this.server_state.setLatestAcceptedRoundNumber(request.getLearnroundnumber());
+		DadkvsServer.debug(this.getClass().getName(), "Accepting value of reqId %d, will send LEARN-ACCEPTED.",
+			request.getLearnreqid());
+		this.server_state.setLatestAcceptedRoundNumber(request.getLearnroundnumber());
+		// gets the request with the given reqid, and commits it
+		this.server_state.commitRequest(request.getLearnreqid());
+
 			DadkvsPaxos.LearnReply reply = DadkvsPaxos.LearnReply.newBuilder().setLearnaccepted(true).build();
 			DadkvsServer.debug(this.getClass().getName(), "Sending LEARN-REPLY with round number %d and reqid %d\n",
 					request.getLearnroundnumber(), request.getLearnreqid());
