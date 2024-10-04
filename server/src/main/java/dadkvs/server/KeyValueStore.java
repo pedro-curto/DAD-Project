@@ -23,18 +23,23 @@ public class KeyValueStore {
     synchronized public boolean write(int k, VersionedValue v) {
         if (k < size) {
             values[k] = v;
-	    return true;
-        }
-	else
-	    return false;
+            return true;
+        } else
+            return false;
     }
 
     synchronized public boolean commit(TransactionRecord tr) {
-    DadkvsServer.debug(KeyValueStore.class.getSimpleName(), "store commit read first key = %d with version = %d and current version = %d\n", tr.getRead1Key(), tr.getRead1Version(), this.read(tr.getRead1Key()).getVersion());
-    DadkvsServer.debug(KeyValueStore.class.getSimpleName(), "store commit read second key = %d with version = %d and current version = %d\n", tr.getRead2Key(), tr.getRead2Version(), this.read(tr.getRead2Key()).getVersion());
-    DadkvsServer.debug(KeyValueStore.class.getSimpleName(), "store commit write key = %d with value = %d and version %d\n", tr.getPrepareKey(), tr.getPrepareValue(), tr.getTimestamp());
+        DadkvsServer.debug(KeyValueStore.class.getSimpleName(),
+                "store commit read first key = %d with version = %d and current version = %d\n", tr.getRead1Key(),
+                tr.getRead1Version(), this.read(tr.getRead1Key()).getVersion());
+        DadkvsServer.debug(KeyValueStore.class.getSimpleName(),
+                "store commit read second key = %d with version = %d and current version = %d\n", tr.getRead2Key(),
+                tr.getRead2Version(), this.read(tr.getRead2Key()).getVersion());
+        DadkvsServer.debug(KeyValueStore.class.getSimpleName(),
+                "store commit write key = %d with value = %d and version %d\n", tr.getPrepareKey(),
+                tr.getPrepareValue(), tr.getTimestamp());
         if (this.read(tr.getRead1Key()).getVersion() == tr.getRead1Version() &&
-            this.read(tr.getRead2Key()).getVersion() == tr.getRead2Version()) {
+                this.read(tr.getRead2Key()).getVersion() == tr.getRead2Version()) {
             VersionedValue vv = new VersionedValue(tr.getPrepareValue(), tr.getTimestamp());
             this.write(tr.getPrepareKey(), vv);
             return true;

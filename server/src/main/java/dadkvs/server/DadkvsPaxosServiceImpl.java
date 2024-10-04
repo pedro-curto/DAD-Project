@@ -81,8 +81,6 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 			this.server_state.learn(request.getPhase2RoundNumber(), request.getPhase2Reqid());
 
 		} else {
-			// the proposal number is different from the one I promised to accept, so I
-			// reject the value
 			DadkvsServer.debug(this.getClass().getName(), "Rejecting value of reqID %d, will send REJECTED.",
 					request.getPhase2Reqid());
 			DadkvsPaxos.PhaseTwoReply reply = DadkvsPaxos.PhaseTwoReply.newBuilder().setPhase2Accepted(false).build();
@@ -98,34 +96,18 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 		DadkvsServer.debug(this.getClass().getName(),
 				"Receive a LEARN request with round number %d and reqid %d\n", request.getLearnroundnumber(),
 				request.getLearnreqid());
-		// if the roundnumber is equal or bigger than the one I promised to accept, I
-		// accept the value
-		//if (request.getLearnroundnumber() >= this.server_state.getLatestAcceptedRoundNumber()) {
 		DadkvsServer.debug(this.getClass().getName(), "Accepting value of reqId %d, will send LEARN-ACCEPTED.",
-			request.getLearnreqid());
+				request.getLearnreqid());
 		this.server_state.setLatestAcceptedRoundNumber(request.getLearnroundnumber());
-		// gets the request with the given reqid, and commits it
-		this.server_state.commitRequest(request.getLearnreqid());
+		int timestamp = this.server_state.getCurrentTimestamp();
+		this.server_state.commitRequest(request.getLearnreqid(), timestamp);
 
-			DadkvsPaxos.LearnReply reply = DadkvsPaxos.LearnReply.newBuilder().setLearnaccepted(true).build();
-			DadkvsServer.debug(this.getClass().getName(), "Sending LEARN-REPLY with round number %d and reqid %d\n",
-					request.getLearnroundnumber(), request.getLearnreqid());
-			
-			responseObserver.onNext(reply);
-			responseObserver.onCompleted();
+		DadkvsPaxos.LearnReply reply = DadkvsPaxos.LearnReply.newBuilder().setLearnaccepted(true).build();
+		DadkvsServer.debug(this.getClass().getName(), "Sending LEARN-REPLY with round number %d and reqid %d\n",
+				request.getLearnroundnumber(), request.getLearnreqid());
 
-		/* } else {
-			// the roundnumber is smaller than the one I promised to accept, so I reject the
-			// value
-			DadkvsServer.debug(this.getClass().getName(), "Rejecting value of reqID %d, will send LEARN-REJECTED.",
-					request.getLearnreqid());
-			DadkvsPaxos.LearnReply reply = DadkvsPaxos.LearnReply.newBuilder().setLearnaccepted(false).build();
-			DadkvsServer.debug(this.getClass().getName(), "Sending LEARN-REPLY with round number %d and reqid %d\n",
-					request.getLearnroundnumber(), request.getLearnreqid());
-			responseObserver.onNext(reply);
-			responseObserver.onCompleted();
-
-		} */
+		responseObserver.onNext(reply);
+		responseObserver.onCompleted();
 
 	}
 

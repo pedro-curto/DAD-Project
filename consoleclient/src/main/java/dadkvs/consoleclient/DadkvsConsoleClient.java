@@ -1,8 +1,5 @@
 package dadkvs.consoleclient;
 
-import java.util.Random;
-import java.util.concurrent.TimeUnit;
-
 import java.util.ArrayList;
 import java.util.Iterator;
 
@@ -148,7 +145,7 @@ public class DadkvsConsoleClient {
 							setdebug_request.setMode(mode);
 							console_async_stubs[replica].setdebug(setdebug_request.build(), setdebug_observer);
 							setdebug_collector.waitForTarget(1);
-							
+
 							if (setdebug_responses.size() >= 1) {
 								Iterator<DadkvsConsole.SetDebugReply> setdebug_iterator = setdebug_responses.iterator();
 								DadkvsConsole.SetDebugReply setdebug_reply = setdebug_iterator.next();

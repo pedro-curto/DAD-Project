@@ -18,7 +18,6 @@
 		<module>server</module>
 		<module>client</module>
 		<module>consoleclient</module>
-		<module>sequencer</module>
 	</modules>
 
 </project>
