@@ -35,7 +35,8 @@ public class GenericResponseCollector<T> {
                 wait();
             } catch (InterruptedException e) {
             }
-            target_reached = true;
         }
+        target_reached = true;
     }
+
 }
