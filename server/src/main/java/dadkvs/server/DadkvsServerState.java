@@ -68,17 +68,20 @@ public class DadkvsServerState {
 	public boolean runPaxos(DadkvsMain.CommitRequest request) {
 		// send prepare
 		int roundNumber = generateRoundNumber();
+		this.currentReqId = request.getReqid();
 		DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
 				"Generated round number for paxos: %d", roundNumber);
 		DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Going to run phase 1");
 
-		boolean phaseOneResult = runPaxosPhase1(roundNumber, totalOrderList.size(), request.getReqid());
+		boolean phaseOneResult = runPaxosPhase1(roundNumber, totalOrderList.size(), this.currentReqId);
 		DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Phase 1 result: %b", phaseOneResult);
 
 		if (phaseOneResult) {
 			// send accept
 			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Going to run phase 2");
-			boolean phaseTwoResult = runPaxosPhase2(roundNumber, request.getReqid(), request);
+			// TODO send the stored reqId that result from runPaxosPhase1 to runPaxosPhase2, instead of request.getReqId
+			// we're not using the value that we stored, aka,
+			boolean phaseTwoResult = runPaxosPhase2(roundNumber, this.currentReqId, request);
 			if (phaseTwoResult) {
 				// learn
 				DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Going to run learn");
