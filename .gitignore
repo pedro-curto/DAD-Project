@@ -32,3 +32,5 @@ arm-pom.xml
 windows-intel-pom.xml
 
 /contract/*.xml
+
+.idea/
