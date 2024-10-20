@@ -11,7 +11,7 @@ import io.grpc.stub.StreamObserver;
 public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServiceImplBase {
 
 	DadkvsServerState server_state;
-	int timestamp;
+	int timestamp; // (paxosCounter) amount of transactions that have commited
 	int n_servers;
 	private final ManagedChannel[] serverChannels;
 	private final DadkvsMainServiceGrpc.DadkvsMainServiceStub[] serverStubs;
@@ -67,6 +67,8 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 		if (server_state.checkFrozenOrDelay()) {
 			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
 					"Server is frozen, cannot process commit request\n");
+
+			// TODO: STORE THE PENDING COMMITS 
 			return;
 		}
 		// for debug purposes
@@ -75,10 +77,10 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 				request.getReqid(), request.getKey1(), request.getKey2(), request.getWritekey(), request.getWriteval());
 		boolean result;
 		int reqId = request.getReqid();
-		this.timestamp++;
+		incrementTimestamp(); // TODO verify if we shouldn't be more specific when incrementing the timestamp
 		this.server_state.addToPendingCommits(reqId, request);
 		// if im the leader, run paxos
-		this.server_state.setTimestamp(this.timestamp);
+		this.server_state.setPaxosCounter(this.timestamp);
 		if (server_state.isLeader()) {
 			result = this.server_state.runPaxos(request);
 		} else {
@@ -102,6 +104,10 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 				.setReqid(reqId).setAck(result).build();
 		responseObserver.onNext(response);
 		responseObserver.onCompleted();
+	}
+
+	public synchronized void incrementTimestamp() {
+		this.timestamp++;
 	}
 
 }

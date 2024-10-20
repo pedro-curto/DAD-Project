@@ -14,7 +14,7 @@ public class DadkvsServer {
 	private static int port;
 
 	public static void debug(String debugClass, String format, Object... args) {
-		System.out.printf("[DEBUG %s] ", debugClass);
+		System.out.printf("[" + debugClass + "] ");
 		System.out.printf(format, args);
 		System.out.println();
 	}
