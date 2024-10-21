@@ -71,6 +71,7 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 			// TODO: STORE THE PENDING COMMITS 
 			return;
 		}
+
 		// for debug purposes
 		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
 				"Receiving commit request with reqid %d to read keys %d and %d and write key %d with value %d\n",
@@ -81,6 +82,7 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 		this.server_state.addToPendingCommits(reqId, request);
 		// if im the leader, run paxos
 		this.server_state.setPaxosCounter(this.timestamp);
+		
 		if (server_state.isLeader()) {
 			result = this.server_state.runPaxos(request);
 		} else {
@@ -96,8 +98,8 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 			// reply
 		} else {
 			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Transaction failed for reqid %d\n", reqId);
-			return;
 		}
+		
 		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "RESULT OF PAXOS: %b\n", result);
 		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Sending commit reply for reqid %d\n\n", reqId);
 		DadkvsMain.CommitReply response = DadkvsMain.CommitReply.newBuilder()

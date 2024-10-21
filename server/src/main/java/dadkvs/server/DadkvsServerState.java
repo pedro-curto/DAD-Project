@@ -1,4 +1,4 @@
-	package dadkvs.server;
+package dadkvs.server;
 
 import dadkvs.DadkvsMain;
 import dadkvs.DadkvsPaxosServiceGrpc;
@@ -35,16 +35,19 @@ public class DadkvsServerState {
 	private int n_proposers;
 
 	//private int timestamp = 0;
-	private Map<Integer, PaxosState> paxosRounds;
+	private Map<Integer, PaxosState> paxosInstances;
 	private int paxosCounter;
 	//private int currentReqId = 0;
 	//private int latestAcceptedRoundNumber = 0;
+	
+	// MAPA [reqID, instanceNumber, roundNumber] ->>> learnCounter
+	private Map<LearnState, Integer> learnCounter = new HashMap<>();
 
 	public class PaxosState { // TODO há problema desta classe ser public?
-		int currentRoundNumber;
-		int currentReqId;
-		int readTs; // read_ts -> when we do PROMISE(n = roundNumber), we need to store the roundNumber of the last leader that we promised to
-		int writeTs; // write_ts -> when we accept a value, we store the roundNumber of the leader who we accepted the value from
+		private int currentRoundNumber;
+		private int currentReqId;
+		private int readTs; // read_ts -> when we do PROMISE(n = roundNumber), we need to store the roundNumber of the last leader that we promised to
+		private int writeTs; // write_ts -> when we accept a value, we store the roundNumber of the leader who we accepted the value from
 		//int previousAcceptedReqId; // the reqId that was accepted
 
 		public PaxosState(int currentRoundNumber, int currentReqId, int readTs, int writeTs) {
@@ -52,6 +55,11 @@ public class DadkvsServerState {
 			this.currentReqId = currentReqId;
 			this.readTs = readTs;
 			this.writeTs = writeTs;
+
+			/* // create entry on the learn counter map
+			LearnState learnState = new LearnState(currentReqId, paxosCounter, currentRoundNumber);
+			learnCounter.put(learnState, 0); */
+
 		}
 
 		public int getCurrentRoundNumber() {
@@ -99,6 +107,7 @@ public class DadkvsServerState {
 		main_loop = new MainLoop(this);
 		main_loop_worker = new Thread(main_loop);
 		main_loop_worker.start();
+		
 
 		// communication with other servers
 		this.n_servers = 5;
@@ -114,18 +123,18 @@ public class DadkvsServerState {
 			serverChannels[i] = ManagedChannelBuilder.forTarget(targets[i]).usePlaintext().build();
 			paxosStubs[i] = DadkvsPaxosServiceGrpc.newStub(serverChannels[i]);
 		}
-		this.paxosRounds = new ConcurrentHashMap<>();
+		this.paxosInstances = new ConcurrentHashMap<>();
 		this.paxosCounter = 0; // counter for the paxos rounds
 	}
 
 	public boolean runPaxos(DadkvsMain.CommitRequest request) {
-		// increments the paxos counter, generates a round number and places the paxosState into the paxosRounds map (inside generateRoundNumber)
+		// increments the paxos counter, generates a round number 
+		// and places the paxosState into the paxosInstances map (inside generateRoundNumber)
 		int roundNumber = generateRoundNumber(); // round of paxos, one instance may have multiple rounds (each round starts with a PREPARE)
 		//this.currentReqId = request.getReqid();
 		DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
-				"Generated round number %d for paxos %d", roundNumber, paxosCounter);
-		DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Going to run phase 1");
-
+				"Going to run phase 1. Generated round number %d for paxos %d", roundNumber, paxosCounter);
+		// sends PREPAREs		
 		boolean phaseOneResult = runPaxosPhase1(roundNumber, request.getReqid());
 		DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Phase 1 result: %b", phaseOneResult);
 
@@ -134,7 +143,7 @@ public class DadkvsServerState {
 			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Going to run phase 2");
 			// TODO send the stored reqId that result from runPaxosPhase1 to runPaxosPhase2, instead of request.getReqId
 			// we're not using the value that we stored, aka,
-			int reqIdToPropose = this.paxosRounds.get(paxosCounter).getCurrentReqId();
+			int reqIdToPropose = this.paxosInstances.get(paxosCounter).getCurrentReqId();
 			boolean phaseTwoResult = runPaxosPhase2(roundNumber, reqIdToPropose, request);
 			if (phaseTwoResult) {
 				// learn
@@ -148,7 +157,11 @@ public class DadkvsServerState {
 			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Phase 2 result: %b", phaseTwoResult);
 			return phaseTwoResult;
 		}
-		return false;
+		// TODO -- retry?
+		// PHASE ONE FAILED - NEED TO DO AN EXTRA ROUND
+		waitExponentialBackoff();
+		return runPaxos(request);
+		// return false;
 	}
 
 	public boolean runPaxosPhase1(int roundNumber, int reqId) {
@@ -201,7 +214,8 @@ public class DadkvsServerState {
 			DadkvsServer.debug(this.getClass().getSimpleName(),
 					"Received majority of promises for round number " + roundNumber);
 			// sets the reqId in the paxosState to the reqId that was accepted
-			this.paxosRounds.get(paxosCounter).setCurrentReqId(new_reqId);
+			this.paxosInstances.get(paxosCounter).setCurrentReqId(new_reqId);
+		} else {
 			DadkvsServer.debug(this.getClass().getSimpleName(),
 					"Did not receive majority of promises for round number " + roundNumber);
 		}
@@ -255,6 +269,7 @@ public class DadkvsServerState {
 
 		return acceptsCounter >= majority;
 	}
+	
 
 	public boolean learn(int roundNumber, int reqId) {
 		// constructs request
@@ -307,6 +322,8 @@ public class DadkvsServerState {
 		// if it's not in the pending commits, we don't commit since it was already
 		// commited
 		if (!this.pendingCommits.containsKey(learnreqid)) {
+			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
+					"Request with reqid %d is not in the pending commits", learnreqid);
 			return;
 		}
 		DadkvsServer.debug(this.getClass().getSimpleName(),
@@ -347,6 +364,25 @@ public class DadkvsServerState {
 	public boolean isServerFrozen() {
 		return this.debug_mode == 2;
 
+	}
+
+	// get LEARN counter
+	public int getLearnCounter(int reqId, int roundNumber) {
+		LearnState learnState = new LearnState(reqId, paxosCounter, roundNumber);
+		if (learnCounter.containsKey(learnState)) {
+			System.out.println("LearnCounter: " + learnCounter.get(learnState));
+			// increment the value on the map learnCounter
+			learnCounter.put(learnState, learnCounter.get(learnState) + 1);
+			
+			return learnCounter.get(learnState);
+		}
+
+		else {
+			// create entry on the learn counter map
+			learnCounter.put(learnState, 1);
+			System.out.println("LearnCounter: " + learnCounter.get(learnState));
+			return 1;
+		}
 	}
 
 	public synchronized void waitRandomTime() {
@@ -392,14 +428,14 @@ public class DadkvsServerState {
 
 	private synchronized int generateRoundNumber() {
 		// need to generate unique proposal numbers
-		if (!this.paxosRounds.containsKey(paxosCounter)) {
-			this.paxosRounds.put(paxosCounter, new PaxosState(my_id, -1, -1, -1));
+		if (!this.paxosInstances.containsKey(paxosCounter)) {
+			this.paxosInstances.put(paxosCounter, new PaxosState(my_id, -1, -1, -1));
 			return my_id;
 		}
-		int previousRound = this.paxosRounds.get(paxosCounter).getCurrentRoundNumber();
+		int previousRound = this.paxosInstances.get(paxosCounter).getCurrentRoundNumber();
 		int newRound = previousRound + n_proposers;
 		// sets the new round number in the paxosState
-		this.paxosRounds.get(paxosCounter).setCurrentRoundNumber(newRound);
+		this.paxosInstances.get(paxosCounter).setCurrentRoundNumber(newRound);
 		return newRound;
 	}
 
@@ -424,19 +460,25 @@ public class DadkvsServerState {
 	//}
 
 	public int getReadTs() {
-		return this.paxosRounds.get(paxosCounter).getReadTs();
+		return this.paxosInstances.get(paxosCounter).getReadTs();
 	}
 
 	public int getWriteTs() {
-		return this.paxosRounds.get(paxosCounter).getWriteTs();
+		return this.paxosInstances.get(paxosCounter).getWriteTs();
 	}
 
 	public void setReadTs(int readTs) {
-		this.paxosRounds.get(paxosCounter).setReadTs(readTs);
+		if (this.paxosInstances.get(paxosCounter) == null) {
+			this.paxosInstances.put(paxosCounter, new PaxosState(-1, -1, -1, -1));
+		}
+		this.paxosInstances.get(paxosCounter).setReadTs(readTs);
 	}
 
 	public void setWriteTs(int writeTs) {
-		this.paxosRounds.get(paxosCounter).setWriteTs(writeTs);
+		if (this.paxosInstances.get(paxosCounter) == null) {
+			this.paxosInstances.put(paxosCounter, new PaxosState(-1, -1, -1, -1));
+		}
+		this.paxosInstances.get(paxosCounter).setWriteTs(writeTs);
 	}
 
 	public synchronized void setPaxosCounter(int paxosCounter) {
@@ -444,10 +486,24 @@ public class DadkvsServerState {
 	}
 
 	public PaxosState getOrCreatePaxosState(int proposedRoundNumber, int paxosCounter) {
-		if (!this.paxosRounds.containsKey(paxosCounter)) {
-			this.paxosRounds.put(paxosCounter, new PaxosState(proposedRoundNumber, -1, -1, -1));
+		if (!this.paxosInstances.containsKey(paxosCounter)) {
+			this.paxosInstances.put(paxosCounter, new PaxosState(proposedRoundNumber, -1, -1, -1));
 		}
-		return this.paxosRounds.get(paxosCounter);
+		return this.paxosInstances.get(paxosCounter);
 	}
 
+	public void waitExponentialBackoff() {
+		// TODO implement correctly
+		// for now, just wait 2 seconds
+		try {
+			Thread.sleep(5000);
+		} catch (InterruptedException e) {
+			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Error waiting exponential backoff: %s\n",
+					e.getMessage());
+		}
+	}
+
+	public int getNumberServers() {
+		return this.n_servers;
+	}
 }

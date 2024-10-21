@@ -1,4 +1,3 @@
-
 package dadkvs.server;
 
 import java.util.ArrayList;
@@ -112,28 +111,38 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 	@Override
 	public void learn(DadkvsPaxos.LearnRequest request, StreamObserver<DadkvsPaxos.LearnReply> responseObserver) {
 		// for debug purposes
-		// TODO como é que se espera de facto por uma maioria de learns no Paxos isso não está a fazer sentido nenhum
 		DadkvsServer.debug(this.getClass().getSimpleName(),
 				"Receive a LEARN request with round number %d and reqid %d\n", request.getLearnroundnumber(),
 				request.getLearnreqid());
 
 		Context ctx = Context.current().fork();
-		
 		ctx.run(() -> {
 		DadkvsServer.debug(this.getClass().getSimpleName(), "Accepting value of reqId %d, will send LEARN-ACCEPTED.",
 				request.getLearnreqid());
 		//this.server_state.setLatestAcceptedRoundNumber(request.getLearnroundnumber());
 		//int timestamp = this.server_state.getPaxosCounter();
-		this.server_state.commitRequest(request.getLearnreqid());
+
+		// Checks if we have a majority to commit the request
+		int majority = this.server_state.getNumberServers()/2 + 1;
+		int learnCounter = this.server_state.getLearnCounter(request.getLearnreqid(), request.getLearnroundnumber());
+		DadkvsServer.debug(this.getClass().getSimpleName(), "LearnCounter: %d, Majority: %d", learnCounter, majority);
+		if (learnCounter < majority) {
+			DadkvsServer.debug(this.getClass().getSimpleName(), "Not enough LEARN requests to commit the request. LearnCounter: %d, Majority: %d",
+			learnCounter, majority);
+		} else {
+			DadkvsServer.debug(this.getClass().getSimpleName(), "Learn Majority reached. LearnCounter: %d, Majority: %d",
+			learnCounter, majority);
+			DadkvsServer.debug(this.getClass().getSimpleName(), "Committing request with reqId %d.", request.getLearnreqid());
+			this.server_state.commitRequest(request.getLearnreqid());
+		}
 
 		DadkvsPaxos.LearnReply reply = DadkvsPaxos.LearnReply.newBuilder().setLearnaccepted(true).build();
-		DadkvsServer.debug(this.getClass().getSimpleName(), "Sending LEARN-REPLY with round number %d and reqid %d\n",
+		DadkvsServer.debug(this.getClass().getSimpleName(), "Sending LEARN-REPLY with round number %d and reqid %d\n"	,
 				request.getLearnroundnumber(), request.getLearnreqid());
 
 		responseObserver.onNext(reply);
 		responseObserver.onCompleted();
 		});
-
 	}
 
 }
