@@ -24,9 +24,9 @@
 		<client.id>1</client.id>
 		<server.host>--host localhost</server.host>
 		<server.port>--port 8080</server.port>
-		<client.keyrange>--range 10</client.keyrange>
+		<client.keyrange>--range 5</client.keyrange>
 		<client.sleeprange>--sleep 5</client.sleeprange>
-		<client.loopsize>--lenght 30</client.loopsize>
+		<client.loopsize>--lenght 10</client.loopsize>
 		<client.interactivemode>-i</client.interactivemode>
 	</properties>
 
