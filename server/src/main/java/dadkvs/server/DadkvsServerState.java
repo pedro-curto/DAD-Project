@@ -145,15 +145,16 @@ public class DadkvsServerState {
 			// we're not using the value that we stored, aka,
 			int reqIdToPropose = this.paxosInstances.get(paxosCounter).getCurrentReqId();
 			boolean phaseTwoResult = runPaxosPhase2(roundNumber, reqIdToPropose, request);
-			if (phaseTwoResult) {
-				// learn
-				DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Going to run learn");
-				boolean learnResult = learn(roundNumber, request.getReqid());
-				DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Learn result: %b", learnResult);
-				return learnResult;
-			} else {
-				// TODO if phase 2 fails, what do we do?
-			}
+			// TODO check what to do if phase 2 fails
+			//if (phaseTwoResult) {
+			//	// learn
+			//	DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Going to run learn");
+			//	boolean learnResult = learn(roundNumber, request.getReqid());
+			//	DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Learn result: %b", learnResult);
+			//	return learnResult;
+			//} else {
+			//	// TODO if phase 2 fails, what do we do?
+			//}
 			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Phase 2 result: %b", phaseTwoResult);
 			return phaseTwoResult;
 		}
@@ -273,7 +274,7 @@ public class DadkvsServerState {
 
 	public boolean learn(int roundNumber, int reqId) {
 		// constructs request
-		int majority = (n_servers / 2) + 1;
+		int majority = (n_acceptors / 2) + 1;
 
 		DadkvsPaxos.LearnRequest learnRequest = DadkvsPaxos.LearnRequest.newBuilder()
 				.setLearnroundnumber(roundNumber)
@@ -297,8 +298,8 @@ public class DadkvsServerState {
 		}
 
 
-		// waits for majority of replies
-		learnCollector.waitForTarget(majority);
+		// waits for replies
+		learnCollector.waitForTarget(n_acceptors);
 
 		// check if majority of replies are received
 		int learnsCounter = 0;
@@ -503,7 +504,7 @@ public class DadkvsServerState {
 		}
 	}
 
-	public int getNumberServers() {
-		return this.n_servers;
+	public int getNumberOfAcceptors() {
+		return this.n_acceptors;
 	}
 }

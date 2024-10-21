@@ -92,10 +92,11 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 			// we set the write_ts to the roundNumber
 			this.server_state.setWriteTs(proposedRoundNumber);
 			//this.server_state.setLatestAcceptedRoundNumber(proposedRoundNumber);
+			this.server_state.learn(request.getPhase2RoundNumber(), request.getPhase2Reqid());
+			
 			DadkvsPaxos.PhaseTwoReply reply = DadkvsPaxos.PhaseTwoReply.newBuilder().setPhase2Accepted(true).build();
 			responseObserver.onNext(reply);
 			responseObserver.onCompleted();
-			//this.server_state.learn(request.getPhase2RoundNumber(), request.getPhase2Reqid());
 
 		} else {
 			DadkvsServer.debug(this.getClass().getSimpleName(), "Rejecting value of reqID %d, will send REJECTED.",
@@ -123,7 +124,7 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 		//int timestamp = this.server_state.getPaxosCounter();
 
 		// Checks if we have a majority to commit the request
-		int majority = this.server_state.getNumberServers()/2 + 1;
+		int majority = this.server_state.getNumberOfAcceptors() / 2 + 1;
 		int learnCounter = this.server_state.getLearnCounter(request.getLearnreqid(), request.getLearnroundnumber());
 		DadkvsServer.debug(this.getClass().getSimpleName(), "LearnCounter: %d, Majority: %d", learnCounter, majority);
 		if (learnCounter < majority) {
