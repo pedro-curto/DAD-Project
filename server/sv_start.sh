@@ -26,7 +26,8 @@ cleanup
 for i in $(seq 0 $((num_servers - 1)))
 do
   echo "Starting server $i"
-  mvn compile exec:java -Dexec.args="$base_port $i" | ts '%Y-%m-%d %H:%M:%S' > "logs/server_${base_port}_${i}.log" 2>&1 &
+  #mvn compile exec:java -Dexec.args="$base_port $i" | ts '%Y-%m-%d %H:%M:%S' > "logs/server_${base_port}_${i}.log" 2>&1 &
+  mvn compile exec:java -Dexec.args="$base_port $i" > "logs/server_${base_port}_${i}.log" 2>&1 &
   pids+=($!)
 done
 
