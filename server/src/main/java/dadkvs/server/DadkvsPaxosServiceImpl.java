@@ -95,7 +95,7 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 			DadkvsPaxos.PhaseTwoReply reply = DadkvsPaxos.PhaseTwoReply.newBuilder().setPhase2Accepted(true).build();
 			responseObserver.onNext(reply);
 			responseObserver.onCompleted();
-			this.server_state.learn(request.getPhase2RoundNumber(), request.getPhase2Reqid());
+			//this.server_state.learn(request.getPhase2RoundNumber(), request.getPhase2Reqid());
 
 		} else {
 			DadkvsServer.debug(this.getClass().getSimpleName(), "Rejecting value of reqID %d, will send REJECTED.",
