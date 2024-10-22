@@ -10,6 +10,7 @@ import dadkvs.DadkvsMain;
 import dadkvs.DadkvsPaxos;
 import dadkvs.DadkvsPaxosServiceGrpc;
 import dadkvs.util.CollectorStreamObserver;
+import dadkvs.util.FreezeMode;
 import dadkvs.util.GenericResponseCollector;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -23,6 +24,7 @@ public class DadkvsServerState {
 	KeyValueStore store;
 	MainLoop main_loop;
 	Thread main_loop_worker;
+	FreezeMode freeze_mode;
 	private final Map<Integer, DadkvsMain.CommitRequest> pendingCommits;
 	//private int currentRoundCounter = 0;
 	private final List<Integer> totalOrderList = new ArrayList();
@@ -108,6 +110,7 @@ public class DadkvsServerState {
 		main_loop = new MainLoop(this);
 		main_loop_worker = new Thread(main_loop);
 		main_loop_worker.start();
+		freeze_mode = new FreezeMode();
 		
 
 		// communication with other servers
@@ -522,5 +525,9 @@ public class DadkvsServerState {
 
 	public int getNumberOfAcceptors() {
 		return this.n_acceptors;
+	}
+
+	public FreezeMode getFreezeMode() {
+		return this.freeze_mode;
 	}
 }

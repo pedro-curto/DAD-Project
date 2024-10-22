@@ -39,11 +39,9 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 
 	@Override
 	public void read(DadkvsMain.ReadRequest request, StreamObserver<DadkvsMain.ReadReply> responseObserver) {
-		if (server_state.checkFrozenOrDelay()) {
-			DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
-					"Server is frozen, cannot process read request\n");
-			return;
-		}
+		this.server_state.getFreezeMode().waitUntilUnfreezed();
+		
+
 		// for debug purposes
 		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
 				"Receiving read request with reqid %d and key %d\n", request.getReqid(), request.getKey());
