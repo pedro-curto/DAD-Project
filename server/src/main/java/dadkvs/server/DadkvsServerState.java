@@ -1,17 +1,18 @@
 package dadkvs.server;
 
-import dadkvs.DadkvsMain;
-import dadkvs.DadkvsPaxosServiceGrpc;
-import dadkvs.util.GenericResponseCollector;
-import dadkvs.DadkvsPaxos;
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import dadkvs.DadkvsMain;
+import dadkvs.DadkvsPaxos;
+import dadkvs.DadkvsPaxosServiceGrpc;
+import dadkvs.util.CollectorStreamObserver;
+import dadkvs.util.GenericResponseCollector;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
-import java.util.ArrayList;
-import dadkvs.util.CollectorStreamObserver;
 
 public class DadkvsServerState {
 	boolean i_am_leader;
@@ -338,6 +339,7 @@ public class DadkvsServerState {
 			// TODO correct to add to total order list here? shouldn't it be when it's
 			// decided?
 			this.totalOrderList.add(learnreqid);
+			notifyAll();
 			this.pendingCommits.remove(learnreqid);
 			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
 					"Transaction committed successfully for reqid %d\n", learnreqid);
@@ -438,6 +440,20 @@ public class DadkvsServerState {
 		// sets the new round number in the paxosState
 		this.paxosInstances.get(paxosCounter).setCurrentRoundNumber(newRound);
 		return newRound;
+	}
+
+	public synchronized boolean waitForPaxosInstanceToFinish(int reqId) {
+		while (!totalOrderList.contains(reqId)) {
+			try {
+				System.err.println("Waiting for paxos instance to finish");
+				wait();
+			} catch (InterruptedException e) {
+				DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Error waiting for paxos instance: %s\n",
+						e.getMessage());
+			}
+		}
+		System.out.println("Finished waiting for paxos instance");
+		return true;
 	}
 
 	//public int getLatestAcceptedRoundNumber() {
