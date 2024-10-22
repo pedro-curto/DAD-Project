@@ -51,7 +51,14 @@ public class DadkvsConsoleServiceImpl extends DadkvsConsoleServiceGrpc.DadkvsCon
 			System.out.println("Server is unfrozen");
 			this.server_state.getFreezeMode().unfreeze();
 		}
-		
+		else if (request.getMode() == 4) {
+			System.out.println("Slow Mode On");
+			this.server_state.getSlowMode().slowOn();
+		}
+		else if (request.getMode() == 5) {
+			System.out.println("Slow Mode Off");
+			this.server_state.getSlowMode().slowOff();
+		}
 		else {
 			this.server_state.debug_mode = request.getMode();
 		}

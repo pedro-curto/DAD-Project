@@ -30,6 +30,7 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 			StreamObserver<DadkvsPaxos.PhaseOneReply> responseObserver) {
 
 		this.server_state.getFreezeMode().waitUntilUnfreezed();
+		this.server_state.getSlowMode().waitUntilUnslowed();
 		// receives prepare and sends promise
 		// for debug purposes
 		DadkvsServer.debug(this.getClass().getSimpleName(),
@@ -77,6 +78,7 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 			StreamObserver<DadkvsPaxos.PhaseTwoReply> responseObserver) {
 				
 		this.server_state.getFreezeMode().waitUntilUnfreezed();
+		this.server_state.getSlowMode().waitUntilUnslowed();
 		
 		// for debug purposes
 		DadkvsServer.debug(this.getClass().getSimpleName(),
@@ -117,6 +119,7 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 	@Override
 	public void learn(DadkvsPaxos.LearnRequest request, StreamObserver<DadkvsPaxos.LearnReply> responseObserver) {
 		this.server_state.getFreezeMode().waitUntilUnfreezed();
+		this.server_state.getSlowMode().waitUntilUnslowed();
 		
 		// for debug purposes
 		DadkvsServer.debug(this.getClass().getSimpleName(),

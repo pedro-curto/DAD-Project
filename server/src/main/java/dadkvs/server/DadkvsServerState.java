@@ -11,6 +11,7 @@ import dadkvs.DadkvsPaxos;
 import dadkvs.DadkvsPaxosServiceGrpc;
 import dadkvs.util.CollectorStreamObserver;
 import dadkvs.util.FreezeMode;
+import dadkvs.util.SlowMode;
 import dadkvs.util.GenericResponseCollector;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -25,6 +26,7 @@ public class DadkvsServerState {
 	MainLoop main_loop;
 	Thread main_loop_worker;
 	FreezeMode freeze_mode;
+	SlowMode slow_mode;
 	private final Map<Integer, DadkvsMain.CommitRequest> pendingCommits;
 	//private int currentRoundCounter = 0;
 	private final List<Integer> totalOrderList = new ArrayList();
@@ -111,6 +113,7 @@ public class DadkvsServerState {
 		main_loop_worker = new Thread(main_loop);
 		main_loop_worker.start();
 		freeze_mode = new FreezeMode();
+		slow_mode = new SlowMode();
 		
 
 		// communication with other servers
@@ -391,19 +394,9 @@ public class DadkvsServerState {
 		}
 	}
 
-	public synchronized void waitRandomTime() {
-		try {
-			int randomTime = (int) (Math.random() * 3000) + 2000;
-			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Waiting random time (ms): %d\n", randomTime);
-			Thread.sleep(randomTime);
-		} catch (InterruptedException e) {
-			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Error waiting random time: %s\n",
-					e.getMessage());
-		}
 
-	}
 
-	public boolean checkFrozenOrDelay() {
+	/* public boolean checkFrozenOrDelay() {
 		switch (this.debug_mode) {
 			case 2:
 				DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Server Frozen\n");
@@ -416,7 +409,7 @@ public class DadkvsServerState {
 				return false;
 		}
 
-	}
+	} */
 
 	public ManagedChannel[] getServerChannels() {
 		return serverChannels;
@@ -529,5 +522,9 @@ public class DadkvsServerState {
 
 	public FreezeMode getFreezeMode() {
 		return this.freeze_mode;
+	}
+
+	public SlowMode getSlowMode() {
+		return this.slow_mode;
 	}
 }

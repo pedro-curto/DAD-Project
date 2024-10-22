@@ -41,6 +41,7 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 	@Override
 	public void read(DadkvsMain.ReadRequest request, StreamObserver<DadkvsMain.ReadReply> responseObserver) {
 		this.server_state.getFreezeMode().waitUntilUnfreezed();
+		this.server_state.getSlowMode().waitUntilUnslowed();
 
 		// for debug purposes
 		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
@@ -65,6 +66,7 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 	public void committx(DadkvsMain.CommitRequest request, StreamObserver<DadkvsMain.CommitReply> responseObserver) {
 
 		this.server_state.getFreezeMode().waitUntilUnfreezed();
+		this.server_state.getSlowMode().waitUntilUnslowed();
 
 		// for debug purposes
 		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
