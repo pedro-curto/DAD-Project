@@ -28,6 +28,8 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 	@Override
 	public void phaseone(DadkvsPaxos.PhaseOneRequest request,
 			StreamObserver<DadkvsPaxos.PhaseOneReply> responseObserver) {
+
+		this.server_state.getFreezeMode().waitUntilUnfreezed();
 		// receives prepare and sends promise
 		// for debug purposes
 		DadkvsServer.debug(this.getClass().getSimpleName(),
@@ -73,6 +75,9 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 	@Override
 	public void phasetwo(DadkvsPaxos.PhaseTwoRequest request,
 			StreamObserver<DadkvsPaxos.PhaseTwoReply> responseObserver) {
+				
+		this.server_state.getFreezeMode().waitUntilUnfreezed();
+		
 		// for debug purposes
 		DadkvsServer.debug(this.getClass().getSimpleName(),
 				"Receive an ACCEPT-REQUEST request with round number %d and reqid %d\n", request.getPhase2RoundNumber(),
@@ -111,6 +116,8 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 
 	@Override
 	public void learn(DadkvsPaxos.LearnRequest request, StreamObserver<DadkvsPaxos.LearnReply> responseObserver) {
+		this.server_state.getFreezeMode().waitUntilUnfreezed();
+		
 		// for debug purposes
 		DadkvsServer.debug(this.getClass().getSimpleName(),
 				"Receive a LEARN request with round number %d and reqid %d\n", request.getLearnroundnumber(),

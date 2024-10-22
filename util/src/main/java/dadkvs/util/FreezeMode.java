@@ -12,7 +12,7 @@ public class FreezeMode {
     synchronized (this) {
       this.freeze = true;
     }
-    System.out.println("[REPLICA] Freezing server...");
+    System.out.println("Freezing server...");
   }
 
   public void unfreeze() {
@@ -20,7 +20,7 @@ public class FreezeMode {
       this.freeze = false;
       this.notifyAll();
     }
-    System.out.println("[REPLICA] Unfreezing server...");
+    System.out.println("Unfreezing server...");
   }
 
   public void waitUntilUnfreezed() {
@@ -29,7 +29,7 @@ public class FreezeMode {
         try {
           this.wait();
         } catch (InterruptedException e) {
-          System.err.println("[REPLICA] Error waiting for unfreeze: " + e.getMessage());
+          System.err.println("Error waiting for unfreeze: " + e.getMessage());
         }
       }
     }
