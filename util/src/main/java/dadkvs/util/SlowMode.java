@@ -37,7 +37,7 @@ public class SlowMode {
 
     public synchronized void waitRandomTime() {
 		try {
-			int randomTime = (int) (Math.random() * 3000) + 2000;
+			int randomTime = (int) (Math.random() * 500) + 500;
             System.out.println("Waiting random time (ms): " + randomTime);
 			Thread.sleep(randomTime);
 		} catch (InterruptedException e) {
