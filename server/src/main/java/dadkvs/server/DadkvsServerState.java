@@ -1,5 +1,6 @@
 package dadkvs.server;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -27,9 +28,11 @@ public class DadkvsServerState {
 	Thread main_loop_worker;
 	FreezeMode freeze_mode;
 	SlowMode slow_mode;
+	// {301: requestDetails, 302: requestDetails, ...}
 	private final Map<Integer, DadkvsMain.CommitRequest> pendingCommits;
 	//private int currentRoundCounter = 0;
-	private final List<Integer> totalOrderList = new ArrayList();
+	// [(reqId, true), (reqId2, false), ...]
+	private final List<Map.Entry<Integer, Boolean>> totalOrderList;
 
 	private final ManagedChannel[] serverChannels;
 	private final DadkvsPaxosServiceGrpc.DadkvsPaxosServiceStub[] paxosStubs;
@@ -48,7 +51,7 @@ public class DadkvsServerState {
 	// MAPA [reqID, instanceNumber, roundNumber] ->>> learnCounter
 	private Map<LearnState, Integer> learnCounter = new HashMap<>();
 
-	public class PaxosState { // TODO há problema desta classe ser public?
+	public class PaxosState {
 		private int currentRoundNumber;
 		private int currentReqId;
 		private int readTs; // read_ts -> when we do PROMISE(n = roundNumber), we need to store the roundNumber of the last leader that we promised to
@@ -115,7 +118,6 @@ public class DadkvsServerState {
 		freeze_mode = new FreezeMode();
 		slow_mode = new SlowMode();
 		
-
 		// communication with other servers
 		this.n_servers = 5;
 		this.n_acceptors = 3;
@@ -130,6 +132,8 @@ public class DadkvsServerState {
 			serverChannels[i] = ManagedChannelBuilder.forTarget(targets[i]).usePlaintext().build();
 			paxosStubs[i] = DadkvsPaxosServiceGrpc.newStub(serverChannels[i]);
 		}
+
+		this.totalOrderList = new ArrayList<>();
 		this.paxosInstances = new ConcurrentHashMap<>();
 		this.paxosCounter = 0; // counter for the paxos rounds
 	}
@@ -192,7 +196,7 @@ public class DadkvsServerState {
 					phaseOneCollector);
 
 			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
-					"Sending PREPARE of round number %d to write on index %d to acceptor %d\n", roundNumber, this.paxosCounter, i);
+					"Sending PREPARE of round number %d on paxosInstance %d to acceptor %d\n", roundNumber, this.paxosCounter, i);
 			paxosStub.phaseone(phaseOneRequest, phaseOneObserver);
 		}
 
@@ -238,6 +242,7 @@ public class DadkvsServerState {
 		DadkvsPaxos.PhaseTwoRequest phaseTwoRequest = DadkvsPaxos.PhaseTwoRequest.newBuilder()
 				.setPhase2RoundNumber(roundNumber)
 				.setPhase2Reqid(reqId)
+				.setPhase2Index(this.paxosCounter)
 				.build();
 
 		ArrayList<DadkvsPaxos.PhaseTwoReply> phaseTwoReplies = new ArrayList<>();
@@ -279,13 +284,14 @@ public class DadkvsServerState {
 	}
 	
 
-	public boolean learn(int roundNumber, int reqId) {
+	public boolean learn(int roundNumber, int reqId, int paxosInstance) {
 		// constructs request
 		int majority = (n_acceptors / 2) + 1;
 
 		DadkvsPaxos.LearnRequest learnRequest = DadkvsPaxos.LearnRequest.newBuilder()
 				.setLearnroundnumber(roundNumber)
 				.setLearnreqid(reqId)
+				.setLearnindex(paxosInstance)
 				.build();
 
 		ArrayList<DadkvsPaxos.LearnReply> learnReplies = new ArrayList<>();
@@ -326,26 +332,40 @@ public class DadkvsServerState {
 	}
 
 
-	public synchronized void commitRequest(int learnreqid) {
-		// if it's not in the pending commits, we don't commit since it was already
-		// commited
-		if (!this.pendingCommits.containsKey(learnreqid)) {
+	public synchronized void commitRequest(int learnreqid, int paxosInstance) {
+		// we check if the request is already in the total order list (already committed)
+		for (Map.Entry<Integer, Boolean> entry : totalOrderList) {
+			if (entry.getKey() == learnreqid) {
+				DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
+					"Request with reqid %d is already in total order list", learnreqid);
+				return;
+			}
+		}
+		// there is a case with a lagging replica that receives the learns of a request it doesn't know about yet
+		// so we need to check if the request is in the pendingCommits; if it isn't, we wait for the commit to be placed
+
+		while (!this.pendingCommits.containsKey(learnreqid)) {
 			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
-					"Request with reqid %d is not in the pending commits", learnreqid);
-			return;
+					"Request with reqid %d is not in pendingCommits, waiting for it", learnreqid);
+			try {
+				wait();
+			} catch (InterruptedException e) {
+				DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
+						"Error waiting for request with reqid %d: %s\n", learnreqid, e.getMessage());
+			}
 		}
 		DadkvsServer.debug(this.getClass().getSimpleName(),
         "Committing request with reqId: " + learnreqid +
-        " | Global timestamp (Paxos Instance): " + this.paxosCounter);
+        " | Global timestamp (Paxos Instance): " + paxosInstance);
 		DadkvsMain.CommitRequest request = this.pendingCommits.get(learnreqid);
 		TransactionRecord txRecord = new TransactionRecord(request.getKey1(), request.getVersion1(), request.getKey2(),
-				request.getVersion2(), request.getWritekey(), request.getWriteval(), this.paxosCounter);
+				request.getVersion2(), request.getWritekey(), request.getWriteval(), paxosInstance);
 		boolean commitResult = this.store.commit(txRecord);
 		if (commitResult) {
 			// TODO correct to add to total order list here? shouldn't it be when it's
 			// decided?
-			this.totalOrderList.add(learnreqid);
-			notifyAll();
+			//this.totalOrderList.add(learnreqid);
+			//notifyAll();
 			this.pendingCommits.remove(learnreqid);
 			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
 					"Transaction committed successfully for reqid %d\n", learnreqid);
@@ -353,18 +373,22 @@ public class DadkvsServerState {
 			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
 					"Transaction failed to commit for reqid %d\n", learnreqid);
 		}
+		// prints total order list after the commit
+		totalOrderList.add(new AbstractMap.SimpleEntry<>(learnreqid, commitResult));
+		DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Total order list: %s\n", this.totalOrderList);
+		notifyAll();
 	}
 
 
-	public int checkTotalOrderIndexAvailability(int proposedIndex) {
-		if (this.totalOrderList.size() == proposedIndex) {
-			// the index is available
-			return -1;
-		} else {
-			// the index is not available
-			return this.totalOrderList.get(proposedIndex);
-		}
-	}
+	// public int checkTotalOrderIndexAvailability(int proposedIndex) {
+	// 	if (this.totalOrderList.size() == proposedIndex) {
+	// 		// the index is available
+	// 		return -1;
+	// 	} else {
+	// 		// the index is not available
+	// 		return this.totalOrderList.get(proposedIndex);
+	// 	}
+	// }
 
 	public boolean isLeader() {
 		return i_am_leader;
@@ -376,8 +400,8 @@ public class DadkvsServerState {
 	}
 
 	// get LEARN counter
-	public int getLearnCounter(int reqId, int roundNumber) {
-		LearnState learnState = new LearnState(reqId, paxosCounter, roundNumber);
+	public int getLearnCounter(int reqId, int roundNumber, int paxosInstance) {
+		LearnState learnState = new LearnState(reqId, paxosInstance, roundNumber);
 		if (learnCounter.containsKey(learnState)) {
 			System.out.println("LearnCounter: " + learnCounter.get(learnState));
 			// increment the value on the map learnCounter
@@ -419,8 +443,9 @@ public class DadkvsServerState {
 		return paxosStubs;
 	}
 
-	public void addToPendingCommits(int reqId, DadkvsMain.CommitRequest request) {
+	public synchronized void addToPendingCommits(int reqId, DadkvsMain.CommitRequest request) {
 		this.pendingCommits.put(reqId, request);
+		notifyAll();
 	}
 
 	// PAXOS METHODS
@@ -439,7 +464,7 @@ public class DadkvsServerState {
 	}
 
 	public synchronized boolean waitForPaxosInstanceToFinish(int reqId) {
-		while (!totalOrderList.contains(reqId)) {
+		while (totalOrderList.stream().noneMatch(entry -> entry.getKey() == reqId)) {
 			try {
 				System.err.println("Waiting for paxos instance to finish");
 				wait();
@@ -472,27 +497,7 @@ public class DadkvsServerState {
 	//	return this.timestamp;
 	//}
 
-	public int getReadTs() {
-		return this.paxosInstances.get(paxosCounter).getReadTs();
-	}
-
-	public int getWriteTs() {
-		return this.paxosInstances.get(paxosCounter).getWriteTs();
-	}
-
-	public void setReadTs(int readTs) {
-		if (this.paxosInstances.get(paxosCounter) == null) {
-			this.paxosInstances.put(paxosCounter, new PaxosState(-1, -1, -1, -1));
-		}
-		this.paxosInstances.get(paxosCounter).setReadTs(readTs);
-	}
-
-	public void setWriteTs(int writeTs) {
-		if (this.paxosInstances.get(paxosCounter) == null) {
-			this.paxosInstances.put(paxosCounter, new PaxosState(-1, -1, -1, -1));
-		}
-		this.paxosInstances.get(paxosCounter).setWriteTs(writeTs);
-	}
+	
 
 	public synchronized void setPaxosCounter(int paxosCounter) {
 		this.paxosCounter = paxosCounter;
@@ -505,9 +510,13 @@ public class DadkvsServerState {
 		return this.paxosInstances.get(paxosCounter);
 	}
 
+	public List<Map.Entry<Integer, Boolean>> getTotalOrderList() {
+		return this.totalOrderList;
+	}
+
 	public void waitExponentialBackoff() {
 		// TODO implement correctly
-		// for now, just wait 2 seconds
+		// for now, just wait 5 seconds
 		try {
 			Thread.sleep(5000);
 		} catch (InterruptedException e) {
