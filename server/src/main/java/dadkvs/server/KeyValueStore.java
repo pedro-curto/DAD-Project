@@ -12,6 +12,10 @@ public class KeyValueStore {
         }
     }
 
+    synchronized  public int getConfig(){
+        return values[0].getValue();
+    }
+
     synchronized public VersionedValue read(int k) {
         if (k < size) {
             return values[k];

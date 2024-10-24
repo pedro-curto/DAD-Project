@@ -12,8 +12,8 @@ import dadkvs.DadkvsPaxos;
 import dadkvs.DadkvsPaxosServiceGrpc;
 import dadkvs.util.CollectorStreamObserver;
 import dadkvs.util.FreezeMode;
-import dadkvs.util.SlowMode;
 import dadkvs.util.GenericResponseCollector;
+import dadkvs.util.SlowMode;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 
@@ -133,6 +133,7 @@ public class DadkvsServerState {
 		DadkvsPaxos.PhaseOneRequest phaseOneRequest = DadkvsPaxos.PhaseOneRequest.newBuilder()
 				.setPhase1RoundNumber(roundNumber)
 				.setPhase1Index(this.paxosCounter)
+				.setPhase1Config(this.getCurrentConfig())
 				.build();
 
 		ArrayList<DadkvsPaxos.PhaseOneReply> phaseOneReplies = new ArrayList<>();
@@ -149,7 +150,10 @@ public class DadkvsServerState {
 					"Sending PREPARE of round number %d on paxosInstance %d to acceptor %d\n", roundNumber, this.paxosCounter, i);
 			paxosStub.phaseone(phaseOneRequest, phaseOneObserver);
 		}
-
+// TODO correct to add to total order list here? shouldn't it be when it's
+			// decided?
+			//this.totalOrderList.add(learnreqid);
+			//notifyAll();
 		// waits for majority of replies
 		phaseOneCollector.waitForTarget(majority);
 
@@ -195,6 +199,7 @@ public class DadkvsServerState {
 				.setPhase2RoundNumber(roundNumber)
 				.setPhase2Reqid(reqId)
 				.setPhase2Index(this.paxosCounter)
+				.setPhase2Config(this.getCurrentConfig())
 				.build();
 
 		ArrayList<DadkvsPaxos.PhaseTwoReply> phaseTwoReplies = new ArrayList<>();
@@ -325,10 +330,11 @@ public class DadkvsServerState {
 				request.getVersion2(), request.getWritekey(), request.getWriteval(), paxosInstance);
 		boolean commitResult = this.store.commit(txRecord);
 		if (commitResult) {
-			// TODO correct to add to total order list here? shouldn't it be when it's
-			// decided?
-			//this.totalOrderList.add(learnreqid);
-			//notifyAll();
+			if(txRecord.getPrepareKey() == 0){
+				if (!canIPropose()) {
+					i_am_leader = false;
+				}
+			}
 			this.pendingCommits.remove(learnreqid);
 			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
 					"Transaction committed successfully for reqid %d\n", learnreqid);
@@ -343,16 +349,13 @@ public class DadkvsServerState {
 		notifyAll();
 	}
 
+	public boolean canIPropose(){
+		return my_id >= getCurrentConfig() && my_id < getCurrentConfig() + n_acceptors;
+	}
 
-	// public int checkTotalOrderIndexAvailability(int proposedIndex) {
-	// 	if (this.totalOrderList.size() == proposedIndex) {
-	// 		// the index is available
-	// 		return -1;
-	// 	} else {
-	// 		// the index is not available
-	// 		return this.totalOrderList.get(proposedIndex);
-	// 	}
-	// }
+	public int getCurrentConfig() {
+		return store.getConfig();
+	}
 
 	public boolean isLeader() {
 		return i_am_leader;
