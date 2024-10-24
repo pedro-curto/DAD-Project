@@ -20,7 +20,9 @@ public class DadkvsConsoleServiceImpl extends DadkvsConsoleServiceGrpc.DadkvsCon
 		System.out.println(request);
 
 		boolean response_value = true;
-		this.server_state.i_am_leader = request.getIsleader();
+		//this.server_state.i_am_leader = request.getIsleader();
+		// change to a proper setter
+		this.server_state.setLeader(request.getIsleader());
 
 		// for debug purposes
 		System.out.println("I am the leader = " + this.server_state.i_am_leader);

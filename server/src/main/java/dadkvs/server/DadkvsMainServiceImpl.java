@@ -142,7 +142,7 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 		this.server_state.setPaxosCounter(this.timestamp);
 		
 		result = this.server_state.runPaxos(request);
-	
+		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Paxos number %d finished for request %d\n", this.timestamp, reqId);
 		DadkvsMain.CommitReply response = DadkvsMain.CommitReply.newBuilder()
 				.setReqid(reqId).setAck(result).build();
 		responseObserver.onNext(response);

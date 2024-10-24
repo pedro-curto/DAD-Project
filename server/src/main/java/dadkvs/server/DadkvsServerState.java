@@ -165,6 +165,8 @@ public class DadkvsServerState {
 				// check if a promise has a greater timestamp in which case adopt its
 				// reqid/value
 				if (reply.getPhase1Timestamp() > maxReadTs) {
+					DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
+							"Found a greater timestamp: %d, replacing reqId %d with %d", reply.getPhase1Timestamp(), new_reqId, reply.getPhase1Reqid());
 					maxReadTs = reply.getPhase1Timestamp();
 					new_reqId = reply.getPhase1Reqid();
 				}
@@ -284,8 +286,15 @@ public class DadkvsServerState {
 
 	public synchronized void commitRequest(int learnreqid, int paxosInstance) {
 		// we check if the request is already in the total order list (already committed)
+		for (Map.Entry<Integer, Boolean> entry : totalOrderList) {
+			if (entry.getKey() == learnreqid) {
+				DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
+					"Request with reqid %d is already in total order list", learnreqid);
+				return;
+			}
+		}
 		DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
-				"Committing request with reqId %d in paxosInstance %d\n", learnreqid, paxosInstance);
+		"Committing request with reqId %d in paxosInstance %d\n", learnreqid, paxosInstance);
 		while (paxosInstance != expectedInstanceNumber) {
 			try {
 				DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
@@ -293,13 +302,6 @@ public class DadkvsServerState {
 				wait();
 			} catch (InterruptedException e) {
 				// Handle exception
-			}
-		}
-		for (Map.Entry<Integer, Boolean> entry : totalOrderList) {
-			if (entry.getKey() == learnreqid) {
-				DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
-					"Request with reqid %d is already in total order list", learnreqid);
-				return;
 			}
 		}
 		// there is a case with a lagging replica that receives the learns of a request it doesn't know about yet
@@ -354,6 +356,14 @@ public class DadkvsServerState {
 
 	public boolean isLeader() {
 		return i_am_leader;
+	}
+
+	public void setLeader(boolean leader) {
+		i_am_leader = leader;
+		if (leader) {
+			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Setting leader and paxosCounter to %d\n", this.expectedInstanceNumber);
+			this.paxosCounter = this.expectedInstanceNumber; // TODO check if -1, 0 or +1
+		}
 	}
 
 	public boolean isServerFrozen() {
