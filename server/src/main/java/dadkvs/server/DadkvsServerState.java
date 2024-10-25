@@ -28,6 +28,10 @@ public class DadkvsServerState {
 	Thread main_loop_worker;
 	FreezeMode freeze_mode;
 	SlowMode slow_mode;
+
+	private final Object leaderLock = new Object();  // Dedicated lock for leader changes
+
+
 	// {301: requestDetails, 302: requestDetails, ...}
 	private final Map<Integer, DadkvsMain.CommitRequest> pendingCommits;
 	//private int currentRoundCounter = 0;
@@ -56,7 +60,7 @@ public class DadkvsServerState {
 	public DadkvsServerState(int kv_size, int port, int myself) {
 		base_port = port;
 		my_id = myself;
-		i_am_leader = my_id == 1;
+		i_am_leader = my_id == 0;
 		debug_mode = 6;
 		store_size = kv_size;
 		this.pendingCommits = new HashMap<>();
@@ -86,6 +90,27 @@ public class DadkvsServerState {
 		this.paxosInstances = new ConcurrentHashMap<>();
 		this.paxosCounter = 0; // counter for the paxos rounds
 		this.expectedInstanceNumber = 1;
+	}
+
+	public DadkvsPaxosServiceGrpc.DadkvsPaxosServiceStub[] getAcceptors() {
+		int currentConfig = getCurrentConfig();
+
+		return new DadkvsPaxosServiceGrpc.DadkvsPaxosServiceStub[] {
+			paxosStubs[(currentConfig + 0) % n_servers],
+			paxosStubs[(currentConfig + 1) % n_servers],
+			paxosStubs[(currentConfig + 2) % n_servers]
+		};
+
+	}
+
+	public DadkvsPaxosServiceGrpc.DadkvsPaxosServiceStub[] getProposers() {
+		// since the proposers are the same as the acceptors, we just return the acceptors
+		return getAcceptors();
+
+	}
+
+	public Object getLeaderLock() {
+		return leaderLock;
 	}
 
 	public boolean runPaxos(DadkvsMain.CommitRequest request) {
@@ -141,14 +166,16 @@ public class DadkvsServerState {
 				phaseOneReplies, n_acceptors);
 
 		// sends PREPARE(n = roundNumber) to all acceptors
-		for (int i = 0; i < n_acceptors; i++) {
-			DadkvsPaxosServiceGrpc.DadkvsPaxosServiceStub paxosStub = paxosStubs[i];
+		int i = getCurrentConfig();
+		for (DadkvsPaxosServiceGrpc.DadkvsPaxosServiceStub acceptor : getAcceptors()) {
+			
 			CollectorStreamObserver<DadkvsPaxos.PhaseOneReply> phaseOneObserver = new CollectorStreamObserver<>(
 					phaseOneCollector);
 
 			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
 					"Sending PREPARE of round number %d on paxosInstance %d to acceptor %d\n", roundNumber, this.paxosCounter, i);
-			paxosStub.phaseone(phaseOneRequest, phaseOneObserver);
+			i++;
+			acceptor.phaseone(phaseOneRequest, phaseOneObserver);
 		}
 // TODO correct to add to total order list here? shouldn't it be when it's
 			// decided?
@@ -207,15 +234,15 @@ public class DadkvsServerState {
 				phaseTwoReplies, n_acceptors);
 
 		// sends ACCEPT to all acceptors
-		for (int i = 0; i < n_acceptors; i++) {
-			DadkvsPaxosServiceGrpc.DadkvsPaxosServiceStub paxosStub = paxosStubs[i];
+		int i = getCurrentConfig();
+		for (DadkvsPaxosServiceGrpc.DadkvsPaxosServiceStub acceptor : getAcceptors()) {
 			CollectorStreamObserver<DadkvsPaxos.PhaseTwoReply> phaseTwoObserver = new CollectorStreamObserver<>(
 					phaseTwoCollector);
 
 			DadkvsServer.debug(DadkvsServerState.class.getSimpleName(),
-					"Sending ACCEPT of round number %d to acceptor %d with reqid %d\n", roundNumber, i, reqId);
-
-			paxosStub.phasetwo(phaseTwoRequest, phaseTwoObserver);
+					"Sending ACCEPT of round number %d to acceptor %d with reqid %d\n", roundNumber, i , reqId);
+			i++;
+			acceptor.phasetwo(phaseTwoRequest, phaseTwoObserver);
 		}
 
 		// waits for majority of replies
@@ -333,6 +360,8 @@ public class DadkvsServerState {
 			if(txRecord.getPrepareKey() == 0){
 				if (!canIPropose()) {
 					i_am_leader = false;
+
+					// if I cannot propose, and 
 				}
 			}
 			this.pendingCommits.remove(learnreqid);
@@ -372,6 +401,10 @@ public class DadkvsServerState {
 	public boolean isServerFrozen() {
 		return this.debug_mode == 2;
 
+	}
+
+	public int getPaxosCounter() {
+		return this.paxosCounter;
 	}
 
 	// get LEARN counter
@@ -438,17 +471,31 @@ public class DadkvsServerState {
 		return newRound;
 	}
 
-	public synchronized boolean waitForPaxosInstanceToFinish(int reqId) {
-		while (totalOrderList.stream().noneMatch(entry -> entry.getKey() == reqId)) {
-			try {
-				System.err.println("Waiting for paxos instance to finish");
-				wait();
-			} catch (InterruptedException e) {
-				DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Error waiting for paxos instance: %s\n",
-						e.getMessage());
+	public boolean waitForPaxosInstanceToFinish(int reqId) {
+
+		synchronized (leaderLock) {
+			// Wait until the Paxos instance finishes or the leader changes
+			while (totalOrderList.stream().noneMatch(entry -> entry.getKey() == reqId)) {
+				try {
+					System.err.println("Waiting for Paxos instance to finish");
+	
+					// Wait until notified that a change has occurred
+					leaderLock.wait();
+	
+					// Check if the current instance is now the leader
+					if (isLeader()) {
+						System.err.println("I AM THE LEADER NOW");
+					}
+	
+				} catch (InterruptedException e) {
+					DadkvsServer.debug(DadkvsServerState.class.getSimpleName(), "Error waiting for Paxos instance: %s\n",
+							e.getMessage());
+				}
 			}
+	
+			System.out.println("Finished waiting for Paxos instance");
 		}
-		System.out.println("Finished waiting for paxos instance");
+	
 		return true;
 	}
 
