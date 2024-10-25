@@ -40,16 +40,15 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 
 		int paxosInstance = request.getPhase1Index();
 		int proposedRoundNumber = request.getPhase1RoundNumber();
-		PaxosState paxosState = this.server_state.getOrCreatePaxosState(proposedRoundNumber, paxosInstance);
 		// we need to get a possible reqId that was agreed upon from the paxosState at the given index (paxosInstance)
+		PaxosState paxosState = this.server_state.getOrCreatePaxosState(proposedRoundNumber, paxosInstance);
 
-		//int newReqId = this.server_state.checkTotalOrderIndexAvailability(proposedIndex); // TODO is this correct?
 		ctx.run(() -> {
 		// if the read_ts that I have is smaller than the roundNumber being proposed, I PROMISE to it
 		DadkvsServer.debug(this.getClass().getSimpleName(), "Checking if I should accept proposal roundNumber: " + proposedRoundNumber + 
 		"My read_ts: " + paxosState.getReadTs());
 		if (proposedRoundNumber > paxosState.getReadTs()) {
-			// TODO if we accepted, we set our read_ts = proposedRoundNumber
+			// we set our read_ts = proposedRoundNumber
 			paxosState.setReadTs(proposedRoundNumber);
 			// if the proposal number i'm getting is bigger than mine, I promise to accept it
 			DadkvsServer.debug(this.getClass().getSimpleName(), "Accepting proposal roundNumber: " + proposedRoundNumber);
@@ -103,25 +102,21 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 		ctx.run(() -> {
 		DadkvsServer.debug(this.getClass().getSimpleName(), "Checking if I should accept proposal roundNumber: " + proposedRoundNumber + 
 		"My read_ts: " + paxosState.getReadTs());
-		if (proposedRoundNumber == paxosState.getReadTs()) { // TODO check condition
-			// if the proposal number is the same as the one I promised to accept, I accept
-			// the value
-			// TODO if we accepted, we set our write_ts = proposedRoundNumber
-			
+		// if the proposal number is the same as the one I promised to accept, I accept
+		// the value
+		if (proposedRoundNumber == paxosState.getReadTs()) {
 
 			DadkvsServer.debug(this.getClass().getSimpleName(), "Accepting value of reqId %d ,will send ACCEPTED.",
 					request.getPhase2Reqid());
 			// we set the write_ts to the roundNumber
 			paxosState.setWriteTs(proposedRoundNumber);
-			// TODO check: we also need to add the reqId to the one that was accepted, right?
 			paxosState.setCurrentReqId(request.getPhase2Reqid());
-			//this.server_state.setLatestAcceptedRoundNumber(proposedRoundNumber);
 			this.server_state.learn(request.getPhase2RoundNumber(), request.getPhase2Reqid(), paxosInstance);
 			
 			DadkvsPaxos.PhaseTwoReply reply = DadkvsPaxos.PhaseTwoReply.newBuilder()
-																	.setPhase2Accepted(true)
-																	.setPhase2Config(this.server_state.getCurrentConfig())
-																	.build();
+			.setPhase2Accepted(true)
+			.setPhase2Config(this.server_state.getCurrentConfig())
+			.build();
 			responseObserver.onNext(reply);
 			responseObserver.onCompleted();
 
@@ -150,10 +145,8 @@ public class DadkvsPaxosServiceImpl extends DadkvsPaxosServiceGrpc.DadkvsPaxosSe
 		ctx.run(() -> {
 		DadkvsServer.debug(this.getClass().getSimpleName(), "Accepting value of reqId %d, will send LEARN-ACCEPTED.",
 				request.getLearnreqid());
-		//this.server_state.setLatestAcceptedRoundNumber(request.getLearnroundnumber());
-		//int timestamp = this.server_state.getPaxosCounter();
 
-		// Checks if we have a majority to commit the request
+		// checks if we have a majority to commit the request
 		int paxosInstance = request.getLearnindex();
 		int majority = this.server_state.getNumberOfAcceptors() / 2 + 1;
 		int learnCounter = this.server_state.getLearnCounter(request.getLearnreqid(), request.getLearnroundnumber(), paxosInstance);

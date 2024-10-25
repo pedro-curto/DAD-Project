@@ -35,7 +35,7 @@ message LearnRequest {
   int32 learnconfig    = 1;
   int32 learnindex     = 2;
   int32 learnreqid     = 3;
-  int32 learnroundnumber = 4; // TODO como assim learnroundnumber?
+  int32 learnroundnumber = 4;
 }
 
 message LearnReply {

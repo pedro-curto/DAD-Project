@@ -13,7 +13,7 @@ import io.grpc.stub.StreamObserver;
 public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServiceImplBase {
 
 	DadkvsServerState server_state;
-	int timestamp; // (paxosCounter) amount of transactions that have commited
+	//int timestamp; // (paxosCounter) amount of transactions that have commited
 	int n_servers;
 	private final ManagedChannel[] serverChannels;
 	private final DadkvsMainServiceGrpc.DadkvsMainServiceStub[] serverStubs;
@@ -26,7 +26,7 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 
 	public DadkvsMainServiceImpl(DadkvsServerState state) {
 		this.server_state = state;
-		this.timestamp = 0;
+		//this.timestamp = 0;
 		this.n_servers = 5;
 		this.port = 8080;
 		this.host = "localhost";
@@ -83,29 +83,40 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 
 		Context ctx = Context.current().fork();
 		ctx.run(() -> {
-			//boolean result;
-			//int reqId = request.getReqid();
-			//incrementTimestamp();
-			//this.server_state.addToPendingCommits(reqId, request);
-			//// if im the leader, run paxos
-			//this.server_state.setPaxosCounter(this.timestamp);
+
 			if (server_state.isLeader()) {
 				synchronized(this) {
 					if (isPaxosRunning()) {
 						DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Paxos is running, adding request %d to queue\n", request.getReqid());
 						commitQueue.add(new PendingCommit(request, responseObserver));
 					} else {
+						// starts new paxos instance
 						isPaxosRunning = true;
-						DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Starting paxos %d for request %d\n", this.timestamp+1, request.getReqid());
 						startPaxosForRequest(request, responseObserver);
 					}
 				}
 			} else {
 				int reqId = request.getReqid();
-				boolean result;
 				DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "I am not the leader\n");
 				this.server_state.addToPendingCommits(reqId, request);
-				result = this.server_state.waitForPaxosInstanceToFinish(reqId);
+
+				boolean result = this.server_state.waitForPaxosInstanceToFinish(reqId);
+
+				if (!result) {
+					// Became leader, need to start Paxos for this request
+					synchronized (this) {
+						if (isPaxosRunning()) {
+							DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(),
+									"Paxos is running, adding request %d to queue\n", request.getReqid());
+							commitQueue.add(new PendingCommit(request, responseObserver));
+						} else {
+							isPaxosRunning = true;
+							startPaxosForRequest(request, responseObserver);
+						}
+					}
+					return;
+				}
+
 				DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Total order List: %s\n", this.server_state.getTotalOrderList());
 				DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "RESULT OF PAXOS: %b\n", result);
 				DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Sending commit reply for reqid %d\n\n",
@@ -118,9 +129,9 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 		});
 	}
 
-	public synchronized void incrementTimestamp() {
-		this.timestamp++;
-	}
+	//public synchronized void incrementTimestamp() {
+	//	this.timestamp++;
+	//}
 
 	private synchronized boolean isPaxosRunning() {
 		return this.isPaxosRunning;
@@ -136,12 +147,12 @@ public class DadkvsMainServiceImpl extends DadkvsMainServiceGrpc.DadkvsMainServi
 	private void processCommitRequest(DadkvsMain.CommitRequest request, StreamObserver<DadkvsMain.CommitReply> responseObserver) {
 		boolean result;
 		int reqId = request.getReqid();
-		incrementTimestamp();
+
 		this.server_state.addToPendingCommits(reqId, request);
-		this.server_state.setPaxosCounter(this.timestamp);
+		//this.server_state.setPaxosCounter(this.timestamp);
 		
-		result = this.server_state.runPaxos(request);
-		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Paxos number %d finished for request %d\n", this.timestamp, reqId);
+		result = this.server_state.runPaxos(request, true);
+		DadkvsServer.debug(DadkvsMainServiceImpl.class.getSimpleName(), "Paxos number %d finished for request %d\n", server_state.getPaxosCounter(), reqId);
 		DadkvsMain.CommitReply response = DadkvsMain.CommitReply.newBuilder()
 				.setReqid(reqId).setAck(result).build();
 		responseObserver.onNext(response);
